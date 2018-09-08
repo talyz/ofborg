@@ -1,6 +1,10 @@
-pub struct PRStatus {
-    //context: String,
-    //description: String,
+pub struct EvaluationResult {
+    pub tags: Option<TagDiff>,
+}
+
+pub struct TagDiff {
+    pub add: Vec<String>,
+    pub delete: Vec<String>,
 }
 
 pub trait StraddledEvaluationTask: Sized {
@@ -9,6 +13,8 @@ pub trait StraddledEvaluationTask: Sized {
 
     fn before_after_merge_message(&self) -> String;
     fn after_merge(&mut self);
+
+    fn results(self) -> EvaluationResult;
 }
 
 pub mod maintainers;

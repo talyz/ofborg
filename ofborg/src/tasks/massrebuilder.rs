@@ -17,14 +17,16 @@ use ofborg::acl::ACL;
 use ofborg::stats;
 use ofborg::stats::Event;
 use ofborg::worker;
-use ofborg::tagger::{StdenvTagger, RebuildTagger, PathsTagger, PkgsAddedRemovedTagger};
+use ofborg::tagger::{RebuildTagger, PathsTagger, PkgsAddedRemovedTagger};
 use ofborg::outpathdiff::{OutPaths, OutPathDiff};
 use ofborg::evalchecker::EvalChecker;
 use ofborg::commitstatus::CommitStatus;
 use ofborg::commentparser::Subset;
+use tasks::eval::StraddledEvaluationTask;
+use tasks::eval::EvaluationResult;
 use amqp::protocol::basic::{Deliver, BasicProperties};
 use hubcaps;
-use tasks::eval::StraddledEvaluationTask;
+
 
 pub struct MassRebuildWorker<E> {
     cloner: checkout::CachedCloner,
@@ -498,15 +500,7 @@ impl<E: stats::SysEvents + 'static> worker::SimpleWorker for MassRebuildWorker<E
                 hubcaps::statuses::State::Pending,
             );
 
-            let mut stdenvtagger = StdenvTagger::new();
-            if !stdenvs.are_same() {
-                stdenvtagger.changed(stdenvs.changed());
-            }
-            update_labels(
-                &issue,
-                stdenvtagger.tags_to_add(),
-                stdenvtagger.tags_to_remove(),
-            );
+            update_pr(&issue, stdenvs.results());
 
             if let Some((removed, added)) = rebuildsniff.package_diff() {
             let mut addremovetagger = PkgsAddedRemovedTagger::new();
@@ -586,6 +580,16 @@ fn make_gist<'a>(
             .expect("Failed to create gist!")
             .html_url,
     );
+}
+
+pub fn update_pr(issue: &hubcaps::issues::IssueRef, result: EvaluationResult) {
+    if let Some(tagdiff) = result.tags {
+        update_labels(
+            &issue,
+            tagdiff.add,
+            tagdiff.delete
+        );
+    }
 }
 
 pub fn update_labels(issue: &hubcaps::issues::IssueRef, add: Vec<String>, remove: Vec<String>) {

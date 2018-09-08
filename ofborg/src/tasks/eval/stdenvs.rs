@@ -1,7 +1,11 @@
-use tasks::eval::StraddledEvaluationTask;
 use std::path::PathBuf;
+use tasks::eval::EvaluationResult;
+use tasks::eval::StraddledEvaluationTask;
+use tasks::eval::TagDiff;
 use ofborg::nix;
 use ofborg::files::file_to_str;
+use ofborg::tagger::StdenvTagger;
+
 
 
 enum StdenvFrom {
@@ -162,8 +166,25 @@ impl StraddledEvaluationTask for Stdenvs {
         String::from("Identifying new stdenvs")
     }
 
-
     fn after_merge(&mut self) {
         self.identify_after();
+    }
+
+    fn results(self) -> EvaluationResult {
+        if self.are_same() {
+            return EvaluationResult {
+                tags: None,
+            };
+        } else {
+            let mut stdenvtagger = StdenvTagger::new();
+            stdenvtagger.changed(self.changed());
+
+            return EvaluationResult {
+                tags: Some(TagDiff {
+                    add: stdenvtagger.tags_to_add(),
+                    delete: stdenvtagger.tags_to_remove(),
+                }),
+            };
+        }
     }
 }
