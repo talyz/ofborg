@@ -24,6 +24,7 @@ use ofborg::commitstatus::CommitStatus;
 use ofborg::commentparser::Subset;
 use amqp::protocol::basic::{Deliver, BasicProperties};
 use hubcaps;
+use tasks::eval::StraddledEvaluationTask;
 
 pub struct MassRebuildWorker<E> {
     cloner: checkout::CachedCloner,
@@ -190,14 +191,12 @@ impl<E: stats::SysEvents + 'static> worker::SimpleWorker for MassRebuildWorker<E
         info!("Checking out target branch {}", &target_branch);
         let refpath = co.checkout_origin_ref(target_branch.as_ref()).unwrap();
 
+        let mut stdenvs = eval::Stdenvs::new(self.nix.clone(), PathBuf::from(&refpath));
         overall_status.set_with_description(
-            "Checking original stdenvs",
+            &stdenvs.before_on_target_branch_message(),
             hubcaps::statuses::State::Pending,
         );
-
-
-        let mut stdenvs = eval::Stdenvs::new(self.nix.clone(), PathBuf::from(&refpath));
-        stdenvs.identify_before();
+        stdenvs.on_target_branch();
 
         let mut rebuildsniff = OutPathDiff::new(self.nix.clone(), PathBuf::from(&refpath));
 
@@ -286,11 +285,10 @@ impl<E: stats::SysEvents + 'static> worker::SimpleWorker for MassRebuildWorker<E
         }
 
         overall_status.set_with_description(
-            "Checking new stdenvs",
+            &stdenvs.before_after_merge_message(),
             hubcaps::statuses::State::Pending,
         );
-
-        stdenvs.identify_after();
+        stdenvs.after_merge();
 
         overall_status.set_with_description(
             "Checking new out paths",

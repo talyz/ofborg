@@ -1,7 +1,8 @@
-
+use tasks::eval::StraddledEvaluationTask;
 use std::path::PathBuf;
 use ofborg::nix;
 use ofborg::files::file_to_str;
+
 
 enum StdenvFrom {
     Before,
@@ -145,5 +146,24 @@ mod tests {
         stdenv.identify(System::X8664Darwin, StdenvFrom::After);
 
         assert!(stdenv.are_same());
+    }
+}
+
+impl StraddledEvaluationTask for Stdenvs {
+    fn before_on_target_branch_message(&self) -> String{
+        String::from("Identifying target branch's stdenvs")
+    }
+
+    fn on_target_branch(&mut self) {
+        self.identify_before();
+    }
+
+    fn before_after_merge_message(&self) -> String{
+        String::from("Identifying new stdenvs")
+    }
+
+
+    fn after_merge(&mut self) {
+        self.identify_after();
     }
 }
