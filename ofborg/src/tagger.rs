@@ -1,5 +1,4 @@
 use ofborg::tasks;
-use ofborg::outpathdiff::PackageArch;
 use std::collections::HashMap;
 
 pub struct StdenvTagger {
@@ -55,45 +54,6 @@ impl StdenvTagger {
         }
 
         return remove;
-    }
-}
-
-pub struct PkgsAddedRemovedTagger {
-    possible: Vec<String>,
-    selected: Vec<String>,
-}
-
-impl PkgsAddedRemovedTagger {
-    pub fn new() -> PkgsAddedRemovedTagger {
-        let mut t = PkgsAddedRemovedTagger {
-            possible: vec![
-                String::from("8.has: package (new)"),
-                String::from("8.has: clean-up"),
-            ],
-            selected: vec![],
-        };
-        t.possible.sort();
-
-        return t;
-    }
-
-    pub fn changed(&mut self, removed: Vec<PackageArch>, added: Vec<PackageArch>) {
-        if removed.len() > 0 {
-            self.selected.push(String::from("8.has: clean-up"));
-        }
-
-        if added.len() > 0 {
-            self.selected.push(String::from("8.has: package (new)"));
-        }
-    }
-
-    pub fn tags_to_add(&self) -> Vec<String> {
-        self.selected.clone()
-    }
-
-    pub fn tags_to_remove(&self) -> Vec<String> {
-        // The cleanup tag is too vague to automatically remove.
-        return vec![];
     }
 }
 

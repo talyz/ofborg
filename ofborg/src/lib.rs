@@ -42,7 +42,6 @@ pub mod stats;
 pub mod ghevent;
 pub mod commentparser;
 pub mod commitstatus;
-pub mod outpathdiff;
 pub mod tagger;
 pub mod asynccmd;
 pub mod notifyworker;
@@ -68,7 +67,6 @@ pub mod ofborg {
     pub use nix;
     pub use acl;
     pub use commentparser;
-    pub use outpathdiff;
     pub use tagger;
     pub use writetoline;
     pub use test_scratch;

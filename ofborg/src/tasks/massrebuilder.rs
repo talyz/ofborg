@@ -18,7 +18,7 @@ use ofborg::stats;
 use ofborg::stats::Event;
 use ofborg::worker;
 use ofborg::tagger::{RebuildTagger, PathsTagger, PkgsAddedRemovedTagger};
-use ofborg::outpathdiff::{OutPaths, OutPathDiff};
+use tasks::eval::outpathdiff::{OutPaths, OutPathDiff};
 use ofborg::evalchecker::EvalChecker;
 use ofborg::commitstatus::CommitStatus;
 use ofborg::commentparser::Subset;

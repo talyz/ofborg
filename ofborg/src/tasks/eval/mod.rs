@@ -21,3 +21,4 @@ pub mod maintainers;
 
 pub mod stdenvs;
 pub use self::stdenvs::Stdenvs;
+pub mod outpathdiff;
