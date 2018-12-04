@@ -62,7 +62,7 @@ fn main() {
     channel
         .bind_queue(easyamqp::BindQueueConfig {
             queue: "stats-events",
-            exchange: "stats",
+            exchange: Exchange("stats"),
             routing_key: None,
             no_wait: false,
             arguments: None,

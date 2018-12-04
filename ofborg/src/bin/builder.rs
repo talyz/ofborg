@@ -83,7 +83,7 @@ fn main() {
     channel
         .bind_queue(easyamqp::BindQueueConfig {
             queue: &queue_name,
-            exchange: "build-jobs",
+            exchange: Exchange("build-jobs"),
             routing_key: None,
             no_wait: false,
             arguments: None,

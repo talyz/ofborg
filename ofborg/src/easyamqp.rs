@@ -65,7 +65,7 @@ pub struct BindQueueConfig<'a> {
     ///
     /// The server MUST accept a blank exchange name to mean the
     /// default exchange.
-    pub exchange: &'a str,
+    pub exchange: Exchange<'a>,
 
     /// Specifies the routing key for the binding. The routing key is
     /// used for routing messages depending on the exchange
@@ -393,7 +393,7 @@ impl TypedWrappers for amqp::Channel {
     ) -> Result<amqp::protocol::queue::BindOk, amqp::AMQPError> {
         self.queue_bind(
             config.queue,
-            config.exchange,
+            config.exchange.0,
             config.routing_key.unwrap_or(""),
             config.no_wait,
             config.arguments.unwrap_or(amqp::Table::new()),

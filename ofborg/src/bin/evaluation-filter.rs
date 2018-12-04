@@ -70,7 +70,7 @@ fn main() {
     channel
         .bind_queue(easyamqp::BindQueueConfig {
             queue: "mass-rebuild-check-inputs",
-            exchange: "github-events",
+            exchange: Exchange("github-events"),
             routing_key: Some("pull_request.nixos/nixpkgs"),
             no_wait: false,
             arguments: None,

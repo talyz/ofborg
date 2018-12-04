@@ -52,7 +52,7 @@ fn main() {
     channel
         .bind_queue(easyamqp::BindQueueConfig {
             queue: "build-results",
-            exchange: "build-results",
+            exchange: Exchange("build-results"),
             routing_key: None,
             no_wait: false,
             arguments: None,
