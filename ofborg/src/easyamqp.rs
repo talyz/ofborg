@@ -5,6 +5,7 @@ use amqp;
 use amqp::Basic;
 
 pub struct Exchange<'a> (pub &'a str);
+pub struct Queue<'a> (pub &'a str);
 
 pub struct ConsumeConfig<'a> {
     /// Specifies the name of the queue to consume from.
@@ -117,8 +118,6 @@ impl <'a> Into<&'a str> for ExchangeType<'a> {
     }
 }
 
-
-pub struct Exchange<'a> (pub &'a str);
 pub struct ExchangeConfig<'a> {
     /// Exchange names starting with "amq." are reserved for
     /// pre-declared and standardised exchanges. The client MAY
