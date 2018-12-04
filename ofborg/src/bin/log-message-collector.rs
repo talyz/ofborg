@@ -49,9 +49,9 @@ fn main() {
 
     channel
         .bind_queue(easyamqp::BindQueueConfig {
-            queue: queue_name.clone(),
-            exchange: "logs".to_owned(),
-            routing_key: Some("*.*".to_owned()),
+            queue: &queue_name,
+            exchange: "logs",
+            routing_key: Some("*.*"),
             no_wait: false,
             arguments: None,
         })

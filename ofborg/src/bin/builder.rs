@@ -82,8 +82,8 @@ fn main() {
 
     channel
         .bind_queue(easyamqp::BindQueueConfig {
-            queue: queue_name.clone(),
-            exchange: "build-jobs".to_owned(),
+            queue: &queue_name,
+            exchange: "build-jobs",
             routing_key: None,
             no_wait: false,
             arguments: None,

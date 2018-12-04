@@ -48,7 +48,7 @@ pub struct ConsumeConfig<'a> {
     pub arguments: Option<amqp::Table>,
 }
 
-pub struct BindQueueConfig {
+pub struct BindQueueConfig<'a> {
     /// Specifies the name of the queue to bind.
     ///
     /// The client MUST either specify a queue name or have previously
@@ -56,7 +56,7 @@ pub struct BindQueueConfig {
     ///
     /// The client MUST NOT attempt to bind a queue that does not
     /// exist. Error code: not-found
-    pub queue: String,
+    pub queue: &'a str,
 
     /// Name of the exchange to bind to.
     ///
@@ -65,7 +65,7 @@ pub struct BindQueueConfig {
     ///
     /// The server MUST accept a blank exchange name to mean the
     /// default exchange.
-    pub exchange: String,
+    pub exchange: &'a str,
 
     /// Specifies the routing key for the binding. The routing key is
     /// used for routing messages depending on the exchange
@@ -82,7 +82,7 @@ pub struct BindQueueConfig {
     /// key K and a publisher sends the exchange a message with
     /// routing key R, then the message MUST be passed to the message
     /// queue if K = R.
-    pub routing_key: Option<String>,
+    pub routing_key: Option<&'a str>,
 
     /// If set, the server will not respond to the method. The client
     /// should not wait for a reply method. If the server could not
@@ -392,7 +392,7 @@ impl TypedWrappers for amqp::Channel {
         self.queue_bind(
             config.queue,
             config.exchange,
-            config.routing_key.unwrap_or("".to_owned()),
+            config.routing_key.unwrap_or(""),
             config.no_wait,
             config.arguments.unwrap_or(amqp::Table::new()),
         )

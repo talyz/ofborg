@@ -69,9 +69,9 @@ fn main() {
 
     channel
         .bind_queue(easyamqp::BindQueueConfig {
-            queue: "mass-rebuild-check-inputs".to_owned(),
-            exchange: "github-events".to_owned(),
-            routing_key: Some("pull_request.nixos/nixpkgs".to_owned()),
+            queue: "mass-rebuild-check-inputs",
+            exchange: "github-events",
+            routing_key: Some("pull_request.nixos/nixpkgs"),
             no_wait: false,
             arguments: None,
         })

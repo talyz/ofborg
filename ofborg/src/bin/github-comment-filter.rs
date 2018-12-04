@@ -69,9 +69,9 @@ fn main() {
 
     channel
         .bind_queue(easyamqp::BindQueueConfig {
-            queue: "build-inputs".to_owned(),
-            exchange: "github-events".to_owned(),
-            routing_key: Some("issue_comment.*".to_owned()),
+            queue: "build-inputs",
+            exchange: "github-events",
+            routing_key: Some("issue_comment.*"),
             no_wait: false,
             arguments: None,
         })

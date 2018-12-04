@@ -61,8 +61,8 @@ fn main() {
 
     channel
         .bind_queue(easyamqp::BindQueueConfig {
-            queue: "stats-events".to_owned(),
-            exchange: "stats".to_owned(),
+            queue: "stats-events",
+            exchange: "stats",
             routing_key: None,
             no_wait: false,
             arguments: None,

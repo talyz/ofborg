@@ -52,8 +52,8 @@ fn main() {
 
     channel
         .bind_queue(easyamqp::BindQueueConfig {
-            queue: "build-results".to_owned(),
-            exchange: "build-results".to_owned(),
+            queue: "build-results",
+            exchange: "build-results",
             routing_key: None,
             no_wait: false,
             arguments: None,
