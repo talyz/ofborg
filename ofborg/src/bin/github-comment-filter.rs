@@ -31,7 +31,7 @@ fn main() {
     let mut channel = session.open_channel(1).unwrap();
     channel
         .declare_exchange(easyamqp::ExchangeConfig {
-            exchange: "github-events".to_owned(),
+            exchange: "github-events",
             exchange_type: easyamqp::ExchangeType::Topic,
             passive: false,
             durable: true,
@@ -44,7 +44,7 @@ fn main() {
 
     channel
         .declare_exchange(easyamqp::ExchangeConfig {
-            exchange: "build-jobs".to_owned(),
+            exchange: "build-jobs",
             exchange_type: easyamqp::ExchangeType::Fanout,
             passive: false,
             durable: true,

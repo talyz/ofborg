@@ -40,7 +40,7 @@ fn main() {
     channel.basic_prefetch(1).unwrap();
     channel
         .declare_exchange(easyamqp::ExchangeConfig {
-            exchange: "build-jobs".to_owned(),
+            exchange: "build-jobs",
             exchange_type: easyamqp::ExchangeType::Fanout,
             passive: false,
             durable: true,

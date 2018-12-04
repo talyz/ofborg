@@ -32,7 +32,7 @@ fn main() {
 
     channel
         .declare_exchange(easyamqp::ExchangeConfig {
-            exchange: "github-events".to_owned(),
+            exchange: "github-events",
             exchange_type: easyamqp::ExchangeType::Topic,
             passive: false,
             durable: true,

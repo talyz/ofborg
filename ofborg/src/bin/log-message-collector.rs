@@ -23,7 +23,7 @@ fn main() {
 
     channel
         .declare_exchange(easyamqp::ExchangeConfig {
-            exchange: "logs".to_owned(),
+            exchange: "logs",
             exchange_type: easyamqp::ExchangeType::Topic,
             passive: false,
             durable: true,

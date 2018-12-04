@@ -95,27 +95,27 @@ pub struct BindQueueConfig<'a> {
     pub arguments: Option<amqp::Table>,
 }
 
-pub enum ExchangeType {
+pub enum ExchangeType<'a> {
     Topic,
     Headers,
     Fanout,
     Direct,
-    Custom(String),
+    Custom(&'a str),
 }
 
-impl Into<String> for ExchangeType {
-    fn into(self) -> String {
+impl <'a> Into<&'a str> for ExchangeType<'a> {
+    fn into(self) -> &'a str {
         match self {
-            ExchangeType::Topic => "topic".to_owned(),
-            ExchangeType::Headers => "headers".to_owned(),
-            ExchangeType::Fanout => "fanout".to_owned(),
-            ExchangeType::Direct => "direct".to_owned(),
+            ExchangeType::Topic => "topic",
+            ExchangeType::Headers => "headers",
+            ExchangeType::Fanout => "fanout",
+            ExchangeType::Direct => "direct",
             ExchangeType::Custom(x) => x,
         }
     }
 }
 
-pub struct ExchangeConfig {
+pub struct ExchangeConfig<'a> {
     /// Exchange names starting with "amq." are reserved for
     /// pre-declared and standardised exchanges. The client MAY
     /// declare an exchange starting with "amq." if the passive option
@@ -125,7 +125,7 @@ pub struct ExchangeConfig {
     /// The exchange name consists of a non-empty sequence of these
     /// characters: letters, digits, hyphen, underscore, period, or
     /// colon. Error code: precondition-failed
-    pub exchange: String,
+    pub exchange: &'a str,
 
     /// Each exchange belongs to one of a set of exchange types
     /// implemented by the server. The exchange types define the
@@ -140,7 +140,7 @@ pub struct ExchangeConfig {
     ///
     /// The client MUST NOT attempt to declare an exchange with a type
     /// that the server does not support. Error code: command-invalid
-    pub exchange_type: ExchangeType,
+    pub exchange_type: ExchangeType<'a>,
 
     /// If set, the server will reply with Declare-Ok if the exchange
     /// already exists with the same name, and raise an error if not.

@@ -27,7 +27,7 @@ fn main() {
 
     channel
         .declare_exchange(easyamqp::ExchangeConfig {
-            exchange: "build-results".to_owned(),
+            exchange: "build-results",
             exchange_type: easyamqp::ExchangeType::Fanout,
             passive: false,
             durable: true,
