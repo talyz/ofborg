@@ -84,8 +84,8 @@ fn main() {
                 cfg.acl(),
             )),
             easyamqp::ConsumeConfig {
-                queue: "mass-rebuild-check-inputs".to_owned(),
-                consumer_tag: format!("{}-evaluation-filter", cfg.whoami()),
+                queue: "mass-rebuild-check-inputs",
+                consumer_tag: &format!("{}-evaluation-filter", cfg.whoami()),
                 no_local: false,
                 no_ack: false,
                 no_wait: false,

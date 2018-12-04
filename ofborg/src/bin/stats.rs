@@ -74,8 +74,8 @@ fn main() {
         .consume(
             worker::new(collector),
             easyamqp::ConsumeConfig {
-                queue: "stats-events".to_owned(),
-                consumer_tag: format!("{}-prometheus-stats-collector", cfg.whoami()),
+                queue: "stats-events",
+                consumer_tag: &format!("{}-prometheus-stats-collector", cfg.whoami()),
                 no_local: false,
                 no_ack: false,
                 no_wait: false,

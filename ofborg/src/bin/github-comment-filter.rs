@@ -85,8 +85,8 @@ fn main() {
                 cfg.github(),
             )),
             easyamqp::ConsumeConfig {
-                queue: "build-inputs".to_owned(),
-                consumer_tag: format!("{}-github-comment-filter", cfg.whoami()),
+                queue: "build-inputs",
+                consumer_tag: &format!("{}-github-comment-filter", cfg.whoami()),
                 no_local: false,
                 no_ack: false,
                 no_wait: false,

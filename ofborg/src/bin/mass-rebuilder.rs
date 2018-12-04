@@ -70,8 +70,8 @@ fn main() {
         .consume(
             worker::new(mrw),
             easyamqp::ConsumeConfig {
-                queue: "mass-rebuild-check-jobs".to_owned(),
-                consumer_tag: format!("{}-mass-rebuild-checker", cfg.whoami()),
+                queue: "mass-rebuild-check-jobs",
+                consumer_tag: &format!("{}-mass-rebuild-checker", cfg.whoami()),
                 no_local: false,
                 no_ack: false,
                 no_wait: false,

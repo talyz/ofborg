@@ -4,9 +4,9 @@ use ofborg::config::RabbitMQConfig;
 use amqp;
 use amqp::Basic;
 
-pub struct ConsumeConfig {
+pub struct ConsumeConfig<'a> {
     /// Specifies the name of the queue to consume from.
-    pub queue: String,
+    pub queue: &'a str,
 
     /// Specifies the identifier for the consumer. The consumer tag is
     /// local to a channel, so two clients can use the same consumer
@@ -15,7 +15,7 @@ pub struct ConsumeConfig {
     ///
     /// The client MUST NOT specify a tag that refers to an existing
     /// consumer. Error code: not-allowed
-    pub consumer_tag: String,
+    pub consumer_tag: &'a str,
 
     /// If the no-local field is set the server will not send messages
     /// to the connection that published them.

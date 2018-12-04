@@ -99,8 +99,8 @@ fn main() {
                 cfg.runner.identity.clone(),
             )),
             easyamqp::ConsumeConfig {
-                queue: queue_name.clone(),
-                consumer_tag: format!("{}-builder", cfg.whoami()),
+                queue: &queue_name,
+                consumer_tag: &format!("{}-builder", cfg.whoami()),
                 no_local: false,
                 no_ack: false,
                 no_wait: false,

@@ -64,8 +64,8 @@ fn main() {
                 100,
             )),
             easyamqp::ConsumeConfig {
-                queue: queue_name,
-                consumer_tag: format!("{}-log-collector", cfg.whoami()),
+                queue: &queue_name,
+                consumer_tag: &format!("{}-log-collector", cfg.whoami()),
                 no_local: false,
                 no_ack: false,
                 no_wait: false,
