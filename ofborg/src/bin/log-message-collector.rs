@@ -9,7 +9,7 @@ use ofborg::config;
 use ofborg::worker;
 use ofborg::tasks;
 use ofborg::easyamqp;
-use ofborg::easyamqp::{Exchange, TypedWrappers};
+use ofborg::easyamqp::{Exchange, Queue, TypedWrappers};
 
 
 fn main() {
@@ -36,7 +36,7 @@ fn main() {
 
     let queue_name = channel
         .declare_queue(easyamqp::QueueConfig {
-            queue: "",
+            queue: Queue(""),
             passive: false,
             durable: false,
             exclusive: true,
@@ -49,7 +49,7 @@ fn main() {
 
     channel
         .bind_queue(easyamqp::BindQueueConfig {
-            queue: &queue_name,
+            queue: Queue(&queue_name),
             exchange: Exchange("logs"),
             routing_key: Some("*.*"),
             no_wait: false,
@@ -64,7 +64,7 @@ fn main() {
                 100,
             )),
             easyamqp::ConsumeConfig {
-                queue: &queue_name,
+                queue: Queue(&queue_name),
                 consumer_tag: &format!("{}-log-collector", cfg.whoami()),
                 no_local: false,
                 no_ack: false,

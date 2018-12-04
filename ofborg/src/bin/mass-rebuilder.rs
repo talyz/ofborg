@@ -14,7 +14,7 @@ use ofborg::stats;
 use ofborg::worker;
 use amqp::Basic;
 use ofborg::easyamqp;
-use ofborg::easyamqp::TypedWrappers;
+use ofborg::easyamqp::{Queue, TypedWrappers};
 
 fn main() {
     let memory_info = sys_info::mem_info().expect("Unable to get memory information from OS");
@@ -55,7 +55,7 @@ fn main() {
 
     channel
         .declare_queue(easyamqp::QueueConfig {
-            queue: "mass-rebuild-check-jobs",
+            queue: Queue("mass-rebuild-check-jobs"),
             passive: false,
             durable: true,
             exclusive: false,
@@ -70,7 +70,7 @@ fn main() {
         .consume(
             worker::new(mrw),
             easyamqp::ConsumeConfig {
-                queue: "mass-rebuild-check-jobs",
+                queue: Queue("mass-rebuild-check-jobs"),
                 consumer_tag: &format!("{}-mass-rebuild-checker", cfg.whoami()),
                 no_local: false,
                 no_ack: false,

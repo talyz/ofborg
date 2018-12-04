@@ -15,7 +15,7 @@ use ofborg::config;
 use ofborg::worker;
 use ofborg::tasks;
 use ofborg::easyamqp;
-use ofborg::easyamqp::{Exchange, TypedWrappers};
+use ofborg::easyamqp::{Exchange, Queue, TypedWrappers};
 
 
 fn main() {
@@ -57,7 +57,7 @@ fn main() {
 
     channel
         .declare_queue(easyamqp::QueueConfig {
-            queue: "build-inputs",
+            queue: Queue("build-inputs"),
             passive: false,
             durable: true,
             exclusive: false,
@@ -69,7 +69,7 @@ fn main() {
 
     channel
         .bind_queue(easyamqp::BindQueueConfig {
-            queue: "build-inputs",
+            queue: Queue("build-inputs"),
             exchange: Exchange("github-events"),
             routing_key: Some("issue_comment.*"),
             no_wait: false,
@@ -85,7 +85,7 @@ fn main() {
                 cfg.github(),
             )),
             easyamqp::ConsumeConfig {
-                queue: "build-inputs",
+                queue: Queue("build-inputs"),
                 consumer_tag: &format!("{}-github-comment-filter", cfg.whoami()),
                 no_local: false,
                 no_ack: false,

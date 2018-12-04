@@ -14,7 +14,7 @@ use ofborg::checkout;
 use ofborg::notifyworker;
 use ofborg::tasks;
 use ofborg::easyamqp;
-use ofborg::easyamqp::{Exchange, TypedWrappers};
+use ofborg::easyamqp::{Exchange, Queue, TypedWrappers};
 
 
 fn main() {
@@ -55,7 +55,7 @@ fn main() {
     if cfg.runner.build_all_jobs != Some(true) {
         queue_name = channel
             .declare_queue(easyamqp::QueueConfig {
-                queue: &format!("build-inputs-{}", cfg.nix.system.clone()),
+                queue: Queue(&format!("build-inputs-{}", cfg.nix.system.clone())),
                 passive: false,
                 durable: true,
                 exclusive: false,
@@ -69,7 +69,7 @@ fn main() {
         warn!("developing and have Graham's permission!");
         queue_name = channel
             .declare_queue(easyamqp::QueueConfig {
-                queue: "",
+                queue: Queue(""),
                 passive: false,
                 durable: false,
                 exclusive: true,
@@ -82,7 +82,7 @@ fn main() {
 
     channel
         .bind_queue(easyamqp::BindQueueConfig {
-            queue: &queue_name,
+            queue: Queue(&queue_name),
             exchange: Exchange("build-jobs"),
             routing_key: None,
             no_wait: false,
@@ -99,7 +99,7 @@ fn main() {
                 cfg.runner.identity.clone(),
             )),
             easyamqp::ConsumeConfig {
-                queue: &queue_name,
+                queue: Queue(&queue_name),
                 consumer_tag: &format!("{}-builder", cfg.whoami()),
                 no_local: false,
                 no_ack: false,

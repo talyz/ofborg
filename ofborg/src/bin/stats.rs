@@ -6,7 +6,7 @@ use std::env;
 use ofborg::{easyamqp, tasks, worker, config, stats};
 
 use amqp::Basic;
-use ofborg::easyamqp::{Exchange, TypedWrappers};
+use ofborg::easyamqp::{Exchange, Queue, TypedWrappers};
 use hyper::server::{Request, Response, Server};
 
 use std::thread;
@@ -49,7 +49,7 @@ fn main() {
 
     channel
         .declare_queue(easyamqp::QueueConfig {
-            queue: "stats-events",
+            queue: Queue("stats-events"),
             passive: false,
             durable: true,
             exclusive: false,
@@ -61,7 +61,7 @@ fn main() {
 
     channel
         .bind_queue(easyamqp::BindQueueConfig {
-            queue: "stats-events",
+            queue: Queue("stats-events"),
             exchange: Exchange("stats"),
             routing_key: None,
             no_wait: false,
@@ -74,7 +74,7 @@ fn main() {
         .consume(
             worker::new(collector),
             easyamqp::ConsumeConfig {
-                queue: "stats-events",
+                queue: Queue("stats-events"),
                 consumer_tag: &format!("{}-prometheus-stats-collector", cfg.whoami()),
                 no_local: false,
                 no_ack: false,

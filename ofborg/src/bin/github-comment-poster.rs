@@ -15,7 +15,7 @@ use ofborg::config;
 use ofborg::worker;
 use ofborg::tasks;
 use ofborg::easyamqp;
-use ofborg::easyamqp::{Exchange, TypedWrappers};
+use ofborg::easyamqp::{Exchange, Queue, TypedWrappers};
 
 fn main() {
     let cfg = config::load(env::args().nth(1).unwrap().as_ref());
@@ -39,7 +39,7 @@ fn main() {
 
     channel
         .declare_queue(easyamqp::QueueConfig {
-            queue: "build-results",
+            queue: Queue("build-results"),
             passive: false,
             durable: true,
             exclusive: false,
@@ -51,7 +51,7 @@ fn main() {
 
     channel
         .bind_queue(easyamqp::BindQueueConfig {
-            queue: "build-results",
+            queue: Queue("build-results"),
             exchange: Exchange("build-results"),
             routing_key: None,
             no_wait: false,
@@ -66,7 +66,7 @@ fn main() {
                 cfg.github_app(),
             )),
             easyamqp::ConsumeConfig {
-                queue: "build-results",
+                queue: Queue("build-results"),
                 consumer_tag: &format!("{}-github-comment-poster", cfg.whoami()),
                 no_local: false,
                 no_ack: false,

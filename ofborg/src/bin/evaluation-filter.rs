@@ -15,7 +15,7 @@ use ofborg::config;
 use ofborg::worker;
 use ofborg::tasks;
 use ofborg::easyamqp;
-use ofborg::easyamqp::{Exchange, TypedWrappers};
+use ofborg::easyamqp::{Exchange, Queue, TypedWrappers};
 
 
 fn main() {
@@ -45,7 +45,7 @@ fn main() {
 
     channel
         .declare_queue(easyamqp::QueueConfig {
-            queue: "mass-rebuild-check-jobs",
+            queue: Queue("mass-rebuild-check-jobs"),
             passive: false,
             durable: true,
             exclusive: false,
@@ -57,7 +57,7 @@ fn main() {
 
     channel
         .declare_queue(easyamqp::QueueConfig {
-            queue: "mass-rebuild-check-inputs",
+            queue: Queue("mass-rebuild-check-inputs"),
             passive: false,
             durable: true,
             exclusive: false,
@@ -69,7 +69,7 @@ fn main() {
 
     channel
         .bind_queue(easyamqp::BindQueueConfig {
-            queue: "mass-rebuild-check-inputs",
+            queue: Queue("mass-rebuild-check-inputs"),
             exchange: Exchange("github-events"),
             routing_key: Some("pull_request.nixos/nixpkgs"),
             no_wait: false,
@@ -84,7 +84,7 @@ fn main() {
                 cfg.acl(),
             )),
             easyamqp::ConsumeConfig {
-                queue: "mass-rebuild-check-inputs",
+                queue: Queue("mass-rebuild-check-inputs"),
                 consumer_tag: &format!("{}-evaluation-filter", cfg.whoami()),
                 no_local: false,
                 no_ack: false,

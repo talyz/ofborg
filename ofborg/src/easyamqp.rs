@@ -4,9 +4,11 @@ use ofborg::config::RabbitMQConfig;
 use amqp;
 use amqp::Basic;
 
+pub struct Exchange<'a> (pub &'a str);
+
 pub struct ConsumeConfig<'a> {
     /// Specifies the name of the queue to consume from.
-    pub queue: &'a str,
+    pub queue: Queue<'a>,
 
     /// Specifies the identifier for the consumer. The consumer tag is
     /// local to a channel, so two clients can use the same consumer
@@ -56,7 +58,7 @@ pub struct BindQueueConfig<'a> {
     ///
     /// The client MUST NOT attempt to bind a queue that does not
     /// exist. Error code: not-found
-    pub queue: &'a str,
+    pub queue: Queue<'a>,
 
     /// Name of the exchange to bind to.
     ///
@@ -215,7 +217,7 @@ pub struct QueueConfig<'a> {
     /// The queue name can be empty, or a sequence of these
     /// characters: letters, digits, hyphen, underscore, period, or
     /// colon. Error code: precondition-failed
-    pub queue: &'a str,
+    pub queue: Queue<'a>,
 
     ///  If set, the server will reply with Declare-Ok if the queue
     ///  already exists with the same name, and raise an error if not.
@@ -345,7 +347,7 @@ impl TypedWrappers for amqp::Channel {
     {
         self.basic_consume(
             callback,
-            config.queue,
+            config.queue.0,
             config.consumer_tag,
             config.no_local,
             config.no_ack,
@@ -377,7 +379,7 @@ impl TypedWrappers for amqp::Channel {
         config: QueueConfig,
     ) -> Result<amqp::protocol::queue::DeclareOk, amqp::AMQPError> {
         self.queue_declare(
-            config.queue,
+            config.queue.0,
             config.passive,
             config.durable,
             config.exclusive,
@@ -392,7 +394,7 @@ impl TypedWrappers for amqp::Channel {
         config: BindQueueConfig,
     ) -> Result<amqp::protocol::queue::BindOk, amqp::AMQPError> {
         self.queue_bind(
-            config.queue,
+            config.queue.0,
             config.exchange.0,
             config.routing_key.unwrap_or(""),
             config.no_wait,
