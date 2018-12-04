@@ -14,7 +14,7 @@ use ofborg::checkout;
 use ofborg::notifyworker;
 use ofborg::tasks;
 use ofborg::easyamqp;
-use ofborg::easyamqp::TypedWrappers;
+use ofborg::easyamqp::{Exchange, TypedWrappers};
 
 
 fn main() {
@@ -40,7 +40,7 @@ fn main() {
     channel.basic_prefetch(1).unwrap();
     channel
         .declare_exchange(easyamqp::ExchangeConfig {
-            exchange: "build-jobs",
+            exchange: Exchange("build-jobs"),
             exchange_type: easyamqp::ExchangeType::Fanout,
             passive: false,
             durable: true,

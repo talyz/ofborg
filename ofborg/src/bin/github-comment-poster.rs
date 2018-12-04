@@ -15,8 +15,7 @@ use ofborg::config;
 use ofborg::worker;
 use ofborg::tasks;
 use ofborg::easyamqp;
-use ofborg::easyamqp::TypedWrappers;
-
+use ofborg::easyamqp::{Exchange, TypedWrappers};
 
 fn main() {
     let cfg = config::load(env::args().nth(1).unwrap().as_ref());
@@ -27,7 +26,7 @@ fn main() {
 
     channel
         .declare_exchange(easyamqp::ExchangeConfig {
-            exchange: "build-results",
+            exchange: Exchange("build-results"),
             exchange_type: easyamqp::ExchangeType::Fanout,
             passive: false,
             durable: true,

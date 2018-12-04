@@ -6,7 +6,7 @@ use std::env;
 use ofborg::{easyamqp, tasks, worker, config, stats};
 
 use amqp::Basic;
-use ofborg::easyamqp::TypedWrappers;
+use ofborg::easyamqp::{Exchange, TypedWrappers};
 use hyper::server::{Request, Response, Server};
 
 use std::thread;
@@ -36,7 +36,7 @@ fn main() {
     let mut channel = session.open_channel(1).unwrap();
     channel
         .declare_exchange(easyamqp::ExchangeConfig {
-            exchange: "stats",
+            exchange: Exchange("stats"),
             exchange_type: easyamqp::ExchangeType::Fanout,
             passive: false,
             durable: true,

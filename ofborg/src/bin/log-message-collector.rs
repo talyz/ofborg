@@ -9,7 +9,7 @@ use ofborg::config;
 use ofborg::worker;
 use ofborg::tasks;
 use ofborg::easyamqp;
-use ofborg::easyamqp::TypedWrappers;
+use ofborg::easyamqp::{Exchange, TypedWrappers};
 
 
 fn main() {
@@ -23,7 +23,7 @@ fn main() {
 
     channel
         .declare_exchange(easyamqp::ExchangeConfig {
-            exchange: "logs",
+            exchange: Exchange("logs"),
             exchange_type: easyamqp::ExchangeType::Topic,
             passive: false,
             durable: true,

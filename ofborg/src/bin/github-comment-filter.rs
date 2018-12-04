@@ -15,7 +15,7 @@ use ofborg::config;
 use ofborg::worker;
 use ofborg::tasks;
 use ofborg::easyamqp;
-use ofborg::easyamqp::TypedWrappers;
+use ofborg::easyamqp::{Exchange, TypedWrappers};
 
 
 fn main() {
@@ -31,7 +31,7 @@ fn main() {
     let mut channel = session.open_channel(1).unwrap();
     channel
         .declare_exchange(easyamqp::ExchangeConfig {
-            exchange: "github-events",
+            exchange: Exchange("github-events"),
             exchange_type: easyamqp::ExchangeType::Topic,
             passive: false,
             durable: true,
@@ -44,7 +44,7 @@ fn main() {
 
     channel
         .declare_exchange(easyamqp::ExchangeConfig {
-            exchange: "build-jobs",
+            exchange: Exchange("build-jobs"),
             exchange_type: easyamqp::ExchangeType::Fanout,
             passive: false,
             durable: true,

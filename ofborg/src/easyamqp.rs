@@ -115,6 +115,8 @@ impl <'a> Into<&'a str> for ExchangeType<'a> {
     }
 }
 
+
+pub struct Exchange<'a> (pub &'a str);
 pub struct ExchangeConfig<'a> {
     /// Exchange names starting with "amq." are reserved for
     /// pre-declared and standardised exchanges. The client MAY
@@ -125,7 +127,7 @@ pub struct ExchangeConfig<'a> {
     /// The exchange name consists of a non-empty sequence of these
     /// characters: letters, digits, hyphen, underscore, period, or
     /// colon. Error code: precondition-failed
-    pub exchange: &'a str,
+    pub exchange: Exchange<'a>,
 
     /// Each exchange belongs to one of a set of exchange types
     /// implemented by the server. The exchange types define the
@@ -358,7 +360,7 @@ impl TypedWrappers for amqp::Channel {
         config: ExchangeConfig,
     ) -> Result<amqp::protocol::exchange::DeclareOk, amqp::AMQPError> {
         self.exchange_declare(
-            config.exchange,
+            config.exchange.0,
             config.exchange_type.into(),
             config.passive,
             config.durable,
