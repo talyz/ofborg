@@ -36,7 +36,7 @@ fn main() {
 
     let queue_name = channel
         .declare_queue(easyamqp::QueueConfig {
-            queue: "".to_owned(),
+            queue: "",
             passive: false,
             durable: false,
             exclusive: true,

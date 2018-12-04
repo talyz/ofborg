@@ -49,7 +49,7 @@ fn main() {
 
     channel
         .declare_queue(easyamqp::QueueConfig {
-            queue: "stats-events".to_owned(),
+            queue: "stats-events",
             passive: false,
             durable: true,
             exclusive: false,

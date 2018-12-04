@@ -55,7 +55,7 @@ fn main() {
     if cfg.runner.build_all_jobs != Some(true) {
         queue_name = channel
             .declare_queue(easyamqp::QueueConfig {
-                queue: format!("build-inputs-{}", cfg.nix.system.clone()),
+                queue: &format!("build-inputs-{}", cfg.nix.system.clone()),
                 passive: false,
                 durable: true,
                 exclusive: false,
@@ -69,7 +69,7 @@ fn main() {
         warn!("developing and have Graham's permission!");
         queue_name = channel
             .declare_queue(easyamqp::QueueConfig {
-                queue: "".to_owned(),
+                queue: "",
                 passive: false,
                 durable: false,
                 exclusive: true,

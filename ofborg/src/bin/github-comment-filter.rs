@@ -57,7 +57,7 @@ fn main() {
 
     channel
         .declare_queue(easyamqp::QueueConfig {
-            queue: "build-inputs".to_owned(),
+            queue: "build-inputs",
             passive: false,
             durable: true,
             exclusive: false,

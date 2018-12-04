@@ -200,7 +200,7 @@ pub struct ExchangeConfig<'a> {
     pub arguments: Option<amqp::Table>,
 }
 
-pub struct QueueConfig {
+pub struct QueueConfig<'a> {
     /// The queue name MAY be empty, in which case the server MUST
     /// create a new queue with a unique generated name and return
     /// this to the client in the Declare-Ok method.
@@ -213,7 +213,7 @@ pub struct QueueConfig {
     /// The queue name can be empty, or a sequence of these
     /// characters: letters, digits, hyphen, underscore, period, or
     /// colon. Error code: precondition-failed
-    pub queue: String,
+    pub queue: &'a str,
 
     ///  If set, the server will reply with Declare-Ok if the queue
     ///  already exists with the same name, and raise an error if not.

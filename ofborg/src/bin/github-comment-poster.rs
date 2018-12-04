@@ -40,7 +40,7 @@ fn main() {
 
     channel
         .declare_queue(easyamqp::QueueConfig {
-            queue: "build-results".to_owned(),
+            queue: "build-results",
             passive: false,
             durable: true,
             exclusive: false,

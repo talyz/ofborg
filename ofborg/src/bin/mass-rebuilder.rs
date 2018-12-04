@@ -55,7 +55,7 @@ fn main() {
 
     channel
         .declare_queue(easyamqp::QueueConfig {
-            queue: "mass-rebuild-check-jobs".to_owned(),
+            queue: "mass-rebuild-check-jobs",
             passive: false,
             durable: true,
             exclusive: false,
