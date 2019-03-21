@@ -19,11 +19,7 @@ impl Actions {
         vec![worker::Action::Ack]
     }
 
-    pub fn done(
-        &mut self,
-        _job: &EvaluationJob,
-        mut response: worker::Actions,
-    ) -> worker::Actions {
+    pub fn done(&mut self, _job: &EvaluationJob, mut response: worker::Actions) -> worker::Actions {
         response.push(worker::Action::Ack);
         response
     }
