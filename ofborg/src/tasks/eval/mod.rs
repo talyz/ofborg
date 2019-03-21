@@ -5,4 +5,6 @@ pub use self::nixpkgs::NixpkgsStrategy;
 mod generic;
 pub use self::generic::GenericStrategy;
 
-pub trait EvaluationStrategy {}
+pub trait EvaluationStrategy {
+    fn pre_clone(&self) -> Result<(), ()>;
+}

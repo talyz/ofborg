@@ -1,11 +1,36 @@
 use tasks::eval::EvaluationStrategy;
+use hubcaps::issues::IssueRef;
+use tasks::evaluate::update_labels;
 
-pub struct NixpkgsStrategy {}
+pub struct NixpkgsStrategy<'a> {
+    issue: &'a IssueRef<'a>,
+}
 
-impl NixpkgsStrategy {
-    pub fn new() -> Box<EvaluationStrategy> {
-        Box::new(Self {})
+impl <'a> NixpkgsStrategy<'a> {
+    pub fn new(issue: &'a IssueRef) -> NixpkgsStrategy<'a> {
+        Self {
+            issue
+        }
+    }
+
+
+    fn tag_from_title(&self) {
+        let darwin = self.issue.get()
+            .map(|iss| {
+                iss.title.to_lowercase().contains("darwin")
+                    || iss.title.to_lowercase().contains("macos")
+            })
+            .unwrap_or(false);
+
+        if darwin {
+            update_labels(&self.issue, &[String::from("6.topic: darwin")], &[]);
+        }
     }
 }
 
-impl EvaluationStrategy for NixpkgsStrategy {}
+impl <'a> EvaluationStrategy for NixpkgsStrategy<'a> {
+    fn pre_clone(&self) -> Result<(), ()> {
+        self.tag_from_title();
+        Ok(())
+    }
+}

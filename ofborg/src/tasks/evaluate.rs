@@ -66,20 +66,6 @@ impl<E: stats::SysEvents> EvaluationWorker<E> {
         evaluationjob::Actions {}
     }
 
-    fn tag_from_title(&self, issue: &hubcaps::issues::IssueRef) {
-        let darwin = issue
-            .get()
-            .map(|iss| {
-                iss.title.to_lowercase().contains("darwin")
-                    || iss.title.to_lowercase().contains("macos")
-            })
-            .unwrap_or(false);
-
-        if darwin {
-            update_labels(&issue, &[String::from("6.topic: darwin")], &[]);
-        }
-    }
-
     fn tag_from_paths(&self, issue: &hubcaps::issues::IssueRef, paths: &[String]) {
         let mut tagger = PathsTagger::new(self.tag_paths.clone());
 
@@ -129,10 +115,10 @@ impl<E: stats::SysEvents + 'static> worker::SimpleWorker for EvaluationWorker<E>
         let issue: Issue;
         let auto_schedule_build_archs: Vec<systems::System>;
 
-        let evaluationStrategy: Box<eval::EvaluationStrategy> = if job.is_nixpkgs() {
-            eval::NixpkgsStrategy::new()
+        let evaluation_strategy: Box<eval::EvaluationStrategy> = if job.is_nixpkgs() {
+            Box::new(eval::NixpkgsStrategy::new(&issue_ref))
         } else {
-            eval::GenericStrategy::new()
+            Box::new(eval::GenericStrategy::new())
         };
 
         match issue_ref.get() {
@@ -163,8 +149,6 @@ impl<E: stats::SysEvents + 'static> worker::SimpleWorker for EvaluationWorker<E>
             }
         };
 
-        self.tag_from_title(&issue_ref);
-
         let mut overall_status = CommitStatus::new(
             repo.statuses(),
             job.pr.head_sha.clone(),
@@ -174,6 +158,8 @@ impl<E: stats::SysEvents + 'static> worker::SimpleWorker for EvaluationWorker<E>
         );
 
         overall_status.set_with_description("Starting", hubcaps::statuses::State::Pending);
+
+        evaluation_strategy.pre_clone().unwrap();
 
         let project = self
             .cloner
