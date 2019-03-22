@@ -185,7 +185,7 @@ impl<E: stats::SysEvents + 'static> worker::SimpleWorker for EvaluationWorker<E>
         let refpath = co.checkout_origin_ref(target_branch.as_ref()).unwrap();
 
 
-        evaluation_strategy.before_merge(&Path::new(&refpath), &mut overall_status);
+        evaluation_strategy.on_target_branch(&Path::new(&refpath), &mut overall_status);
 
         overall_status.set_with_description("Fetching PR", hubcaps::statuses::State::Pending);
 

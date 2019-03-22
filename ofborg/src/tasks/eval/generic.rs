@@ -14,7 +14,7 @@ impl EvaluationStrategy for GenericStrategy {
         Ok(())
     }
 
-    fn before_merge(&self, co: &Path,  status: &mut CommitStatus) -> StepResult {
+    fn on_target_branch(&self, co: &Path,  status: &mut CommitStatus) -> StepResult {
         Ok(())
     }
 }

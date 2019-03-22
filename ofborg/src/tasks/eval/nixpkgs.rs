@@ -51,7 +51,7 @@ impl <'a> EvaluationStrategy for NixpkgsStrategy<'a> {
         Ok(())
     }
 
-    fn before_merge(&self, co: &Path, status: &mut CommitStatus) -> StepResult {
+    fn on_target_branch(&self, co: &Path, status: &mut CommitStatus) -> StepResult {
         status.set_with_description(
             "Checking original stdenvs",
             hubcaps::statuses::State::Pending,

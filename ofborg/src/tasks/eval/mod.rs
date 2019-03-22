@@ -9,7 +9,8 @@ use ofborg::commitstatus::CommitStatus;
 
 pub trait EvaluationStrategy {
     fn pre_clone(&self) -> StepResult;
-    fn before_merge(&self, co: &Path, status: &mut CommitStatus) -> StepResult;
+    fn on_target_branch(&self, co: &Path, status: &mut CommitStatus) -> StepResult;
+
 }
 
 type StepResult = Result<(), Error>;
