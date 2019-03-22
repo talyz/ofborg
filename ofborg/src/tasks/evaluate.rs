@@ -116,7 +116,7 @@ impl<E: stats::SysEvents + 'static> worker::SimpleWorker for EvaluationWorker<E>
         let auto_schedule_build_archs: Vec<systems::System>;
 
         let evaluation_strategy: Box<eval::EvaluationStrategy> = if job.is_nixpkgs() {
-            Box::new(eval::NixpkgsStrategy::new(&issue_ref))
+            Box::new(eval::NixpkgsStrategy::new(&issue_ref, &gists))
         } else {
             Box::new(eval::GenericStrategy::new())
         };
@@ -184,46 +184,8 @@ impl<E: stats::SysEvents + 'static> worker::SimpleWorker for EvaluationWorker<E>
         info!("Checking out target branch {}", &target_branch);
         let refpath = co.checkout_origin_ref(target_branch.as_ref()).unwrap();
 
-        overall_status.set_with_description(
-            "Checking original stdenvs",
-            hubcaps::statuses::State::Pending,
-        );
 
-        let mut stdenvs = eval::Stdenvs::new(self.nix.clone(), PathBuf::from(&refpath));
-        stdenvs.identify_before();
-
-        let mut rebuildsniff = OutPathDiff::new(self.nix.clone(), PathBuf::from(&refpath));
-
-        overall_status.set_with_description(
-            "Checking original out paths",
-            hubcaps::statuses::State::Pending,
-        );
-
-        let target_branch_rebuild_sniff_start = Instant::now();
-
-        if let Err(mut output) = rebuildsniff.find_before() {
-            overall_status.set_url(make_gist(
-                &gists,
-                "Output path comparison",
-                Some("".to_owned()),
-                file_to_str(&mut output),
-            ));
-
-            self.events
-                .notify(Event::TargetBranchFailsEvaluation(target_branch.clone()));
-            overall_status.set_with_description(
-                format!("Target branch {} doesn't evaluate!", &target_branch).as_ref(),
-                hubcaps::statuses::State::Failure,
-            );
-
-            return self.actions().skip(&job);
-        }
-        self.events.notify(Event::EvaluationDuration(
-            target_branch.clone(),
-            target_branch_rebuild_sniff_start.elapsed().as_secs(),
-        ));
-        self.events
-            .notify(Event::EvaluationDurationCount(target_branch.clone()));
+        evaluation_strategy.before_merge(&mut overall_status, refpath);
 
         overall_status.set_with_description("Fetching PR", hubcaps::statuses::State::Pending);
 
@@ -605,7 +567,7 @@ impl<E: stats::SysEvents + 'static> worker::SimpleWorker for EvaluationWorker<E>
     }
 }
 
-fn make_gist<'a>(
+pub fn make_gist<'a>(
     gists: &hubcaps::gists::Gists<'a>,
     name: &str,
     description: Option<String>,
