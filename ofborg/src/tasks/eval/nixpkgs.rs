@@ -24,6 +24,7 @@ pub struct NixpkgsStrategy<'a> {
     events: (),
     nix: &'a Nix,
     tag_paths: &'a HashMap<String, Vec<String>>,
+    stdenvs: Option<Stdenvs>,
 }
 
 impl <'a> NixpkgsStrategy<'a> {
@@ -35,6 +36,7 @@ impl <'a> NixpkgsStrategy<'a> {
             nix,
             tag_paths,
             events: (),
+            stdenvs: None,
         }
     }
 
@@ -76,6 +78,7 @@ impl <'a> EvaluationStrategy for NixpkgsStrategy<'a> {
 
         let mut stdenvs = Stdenvs::new(self.nix.clone(), PathBuf::from(&co));
         stdenvs.identify_before();
+        self.stdenvs = Some(stdenvs);
 
         let mut rebuildsniff = OutPathDiff::new(self.nix.clone(), PathBuf::from(&co));
 
@@ -147,10 +150,11 @@ impl <'a> EvaluationStrategy for NixpkgsStrategy<'a> {
         update_labels(&self.issue, &[], &["2.status: merge conflict".to_owned()]);
 
 
-        status
-            .set_with_description("Checking new stdenvs", hubcaps::statuses::State::Pending);
-
-        stdenvs.identify_after();
+        if let Some(stdenvs) = self.stdenvs {
+            status
+                .set_with_description("Checking new stdenvs", hubcaps::statuses::State::Pending);
+            stdenvs.identify_after();
+        }
 
         status
             .set_with_description("Checking new out paths", hubcaps::statuses::State::Pending);
