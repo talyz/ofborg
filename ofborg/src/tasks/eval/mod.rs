@@ -20,4 +20,5 @@ type StepResult = Result<(), Error>;
 #[derive(Debug)]
 pub enum Error {
     Fail(String),
+    FailWithGist(String, String, String),
 }

@@ -25,6 +25,7 @@ pub struct NixpkgsStrategy<'a> {
     nix: &'a Nix,
     tag_paths: &'a HashMap<String, Vec<String>>,
     stdenvs: Option<Stdenvs>,
+    outpathdiff: Option<OutPathDiff>
 }
 
 impl <'a> NixpkgsStrategy<'a> {
@@ -37,6 +38,7 @@ impl <'a> NixpkgsStrategy<'a> {
             tag_paths,
             events: (),
             stdenvs: None,
+            outpathdiff: None,
         }
     }
 
@@ -87,7 +89,6 @@ impl <'a> EvaluationStrategy for NixpkgsStrategy<'a> {
             hubcaps::statuses::State::Pending,
         );
 
-
         let target_branch = match self.job.pr.target_branch.clone() {
             Some(x) => x,
             None => String::from("master"),
@@ -114,6 +115,7 @@ impl <'a> EvaluationStrategy for NixpkgsStrategy<'a> {
 
             return Err(Error::Fail(String::from("Pull request targets a branch which does not evaluate!")))
         }
+        self.outpathdiff = Some(rebuildsniff);
 
 /*
         self.events.notify(Event::EvaluationDuration(
@@ -156,8 +158,18 @@ impl <'a> EvaluationStrategy for NixpkgsStrategy<'a> {
             stdenvs.identify_after();
         }
 
-        status
-            .set_with_description("Checking new out paths", hubcaps::statuses::State::Pending);
+        if let Some(rebuildsniff) = self.outpathdiff {
+            status
+                .set_with_description("Checking new out paths", hubcaps::statuses::State::Pending);
+
+            if let Err(mut output) = rebuildsniff.find_after() {
+                return Err(Error::FailWithGist(
+                    String::from("Failed to enumerate outputs after merging to {}"),
+                    String::from("Output path comparison"),
+                    file_to_str(&mut output)
+                ))
+            }
+        }
 
         Ok(())
     }
