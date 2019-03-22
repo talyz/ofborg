@@ -1,19 +1,21 @@
 use ofborg::tagger::{
     MaintainerPRTagger, PathsTagger, PkgsAddedRemovedTagger, RebuildTagger, StdenvTagger,
 };
+use crate::maintainers;
+use crate::maintainers::ImpactedMaintainers;
+use hubcaps::repositories::Repository;
 use ofborg::worker;
-use ofborg::message::{buildjob, evaluationjob};
+use ofborg::message::buildjob;
 use ofborg::commentparser::Subset;
 use uuid::Uuid;
 use tasks::eval::{EvaluationStrategy, StepResult, Stdenvs, Error};
-use hubcaps::issues::IssueRef;
+use hubcaps::issues::{IssueRef, Issue};
+use hubcaps::pulls::PullRequest;
 use hubcaps::gists::Gists;
-use hubcaps::repos::Repo;
 use tasks::evaluate::{update_labels, make_gist};
 use std::path::PathBuf;
 use ofborg::outpathdiff::{OutPathDiff, OutPaths};
 use std::time::Instant;
-use ofborg::stats::Event;
 use std::path::Path;
 use ofborg::files::file_to_str;
 use ofborg::message::evaluationjob::EvaluationJob;
@@ -27,32 +29,36 @@ use ofborg::message::buildjob::BuildJob;
 
 pub struct NixpkgsStrategy<'a> {
     job: &'a EvaluationJob,
-    repo: &'a Repo<'a>,
+    repo: &'a Repository<'a>,
+    pull: &'a PullRequest<'a>,
     issue: &'a IssueRef<'a>,
+    issue_data: &'a Issue,
     gists: &'a Gists<'a>,
     events: (),
     nix: &'a Nix,
     tag_paths: &'a HashMap<String, Vec<String>>,
     stdenvs: Option<Stdenvs>,
     outpathdiff: Option<OutPathDiff>,
-    resulting_actions: worker::Actions,
     possibly_touched_packages: Option<Vec<String>>,
+    changed_paths: Option<Vec<String>>,
 }
 
 impl <'a> NixpkgsStrategy<'a> {
-    pub fn new(job: &'a EvaluationJob, repo: &'a Repo, issue: &'a IssueRef, gists: &'a Gists, nix: &'a Nix, tag_paths: &'a HashMap<String, Vec<String>>,) -> NixpkgsStrategy<'a> {
+    pub fn new(job: &'a EvaluationJob, repo: &'a Repository, pull: &'a PullRequest<'a>, issue: &'a IssueRef, issue_data: &'a Issue, gists: &'a Gists, nix: &'a Nix, tag_paths: &'a HashMap<String, Vec<String>>,) -> NixpkgsStrategy<'a> {
         Self {
             job,
             repo,
+            pull,
             issue,
+            issue_data,
             gists,
             nix,
             tag_paths,
             events: (),
             stdenvs: None,
             outpathdiff: None,
-            resulting_actions: vec![],
             possibly_touched_packages: None,
+            changed_paths: None,
         }
     }
 
@@ -79,7 +85,7 @@ impl <'a> NixpkgsStrategy<'a> {
         update_labels(&issue, &tagger.tags_to_add(), &tagger.tags_to_remove());
     }
 
-    fn check_meta(&self) -> StepResult<Vec<BuildJob>> {
+    fn check_meta(&self, co: &Path) -> StepResult<Vec<BuildJob>> {
         let mut status = CommitStatus::new(
             self.repo.statuses(),
             self.job.pr.head_sha.clone(),
@@ -93,13 +99,13 @@ impl <'a> NixpkgsStrategy<'a> {
         let state: hubcaps::statuses::State;
         let gist_url: Option<String>;
 
-        let checker = OutPaths::new(self.nix.clone(), PathBuf::from(&refpath), true);
+        let checker = OutPaths::new(self.nix.clone(), co.to_path_buf(), true);
         match checker.find() {
             Ok(pkgs) => {
                 status.set_url(None);
                 status.set(hubcaps::statuses::State::Success);
 
-                if let Some(possibly_touched_packages) = self.possibly_touched_packages {
+                if let Some(ref possibly_touched_packages) = self.possibly_touched_packages {
                     let mut try_build: Vec<String> = pkgs
                         .keys()
                         .map(|pkgarch| pkgarch.package.clone())
@@ -144,15 +150,120 @@ impl <'a> NixpkgsStrategy<'a> {
             }
         }
     }
+
+    fn handle_changed_outputs(&mut self, co: &Path, overall_status: &mut CommitStatus) -> StepResult<()> {
+        overall_status.set_with_description(
+            "Calculating Changed Outputs",
+            hubcaps::statuses::State::Pending,
+        );
+
+        let mut stdenvtagger = StdenvTagger::new();
+        if let Some(ref stdenvs) = self.stdenvs {
+            if !stdenvs.are_same() {
+                stdenvtagger.changed(stdenvs.changed());
+            }
+
+            update_labels(
+                &self.issue,
+                &stdenvtagger.tags_to_add(),
+                &stdenvtagger.tags_to_remove(),
+            );
+        }
+
+        if let Some(rebuildsniff) = self.outpathdiff.take() {
+            if let Some((removed, added)) = rebuildsniff.package_diff() {
+                let mut addremovetagger = PkgsAddedRemovedTagger::new();
+                addremovetagger.changed(&removed, &added);
+                update_labels(
+                    &self.issue,
+                    &addremovetagger.tags_to_add(),
+                    &addremovetagger.tags_to_remove(),
+                );
+            }
+
+            if let Some(attrs) = rebuildsniff.calculate_rebuild() {
+                let mut rebuild_tags = RebuildTagger::new();
+                if !attrs.is_empty() {
+                    let gist_url = make_gist(
+                        &self.gists,
+                        "Changed Paths",
+                        Some("".to_owned()),
+                        attrs
+                            .iter()
+                            .map(|attr| format!("{}\t{}", &attr.architecture, &attr.package))
+                            .collect::<Vec<String>>()
+                            .join("\n"),
+                    );
+
+                    overall_status.set_url(gist_url);
+
+                    let changed_attributes = attrs
+                        .iter()
+                        .map(|attr| attr.package.split('.').collect::<Vec<&str>>())
+                        .collect::<Vec<Vec<&str>>>();
+
+                    if let Some(ref changed_paths) = self.changed_paths {
+                        let m = ImpactedMaintainers::calculate(
+                            &self.nix,
+                            co,
+                            &changed_paths,
+                            &changed_attributes,
+                        );
+
+                        let gist_url = make_gist(
+                            &self.gists,
+                            "Potential Maintainers",
+                            Some("".to_owned()),
+                            match m {
+                                Ok(ref maintainers) => format!("Maintainers:\n{}", maintainers),
+                                Err(ref e) => format!("Ignorable calculation error:\n{:?}", e),
+                            },
+                        );
+
+                        if let Ok(ref maint) = m {
+                            request_reviews(&maint, &self.pull);
+                            let mut maint_tagger = MaintainerPRTagger::new();
+                            maint_tagger
+                                .record_maintainer(&self.issue_data.user.login, &maint.maintainers_by_package());
+                            update_labels(
+                                &self.issue,
+                                &maint_tagger.tags_to_add(),
+                                &maint_tagger.tags_to_remove(),
+                            );
+                        }
+
+                        let mut status = CommitStatus::new(
+                            self.repo.statuses(),
+                            self.job.pr.head_sha.clone(),
+                            String::from("grahamcofborg-eval-check-maintainers"),
+                            String::from("matching changed paths to changed attrs..."),
+                            gist_url,
+                        );
+                        status.set(hubcaps::statuses::State::Success);
+                    }
+                }
+
+                rebuild_tags.parse_attrs(attrs);
+
+                update_labels(
+                    &self.issue,
+                    &rebuild_tags.tags_to_add(),
+                    &rebuild_tags.tags_to_remove(),
+                );
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl <'a> EvaluationStrategy for NixpkgsStrategy<'a> {
-    fn pre_clone(&self) -> StepResult<()> {
+    fn pre_clone(&mut self) -> StepResult<()> {
         self.tag_from_title();
         Ok(())
     }
 
-    fn on_target_branch(&self, co: &Path, status: &mut CommitStatus) -> StepResult<()> {
+    fn on_target_branch(&mut self, co: &Path, status: &mut CommitStatus) -> StepResult<()> {
         status.set_with_description(
             "Checking original stdenvs",
             hubcaps::statuses::State::Pending,
@@ -208,7 +319,7 @@ impl <'a> EvaluationStrategy for NixpkgsStrategy<'a> {
         Ok(())
     }
 
-    fn after_fetch(&self, co: &CachedProjectCo) -> StepResult<()> {
+    fn after_fetch(&mut self, co: &CachedProjectCo) -> StepResult<()> {
         self.possibly_touched_packages = Some(parse_commit_messages(
             &co.commit_messages_from_head(&self.job.pr.head_sha)
                 .unwrap_or_else(|_| vec!["".to_owned()]),
@@ -218,25 +329,26 @@ impl <'a> EvaluationStrategy for NixpkgsStrategy<'a> {
             .files_changed_from_head(&self.job.pr.head_sha)
             .unwrap_or_else(|_| vec![]);
         self.tag_from_paths(&self.issue, &changed_paths);
+        self.changed_paths = Some(changed_paths);
 
         Ok(())
     }
 
-    fn merge_conflict(&self) {
+    fn merge_conflict(&mut self) {
         update_labels(&self.issue, &["2.status: merge conflict".to_owned()], &[]);
     }
 
-    fn after_merge(&self, status: &mut CommitStatus) -> StepResult<()> {
+    fn after_merge(&mut self, status: &mut CommitStatus) -> StepResult<()> {
         update_labels(&self.issue, &[], &["2.status: merge conflict".to_owned()]);
 
 
-        if let Some(stdenvs) = self.stdenvs {
+        if let Some(ref mut stdenvs) = self.stdenvs {
             status
                 .set_with_description("Checking new stdenvs", hubcaps::statuses::State::Pending);
             stdenvs.identify_after();
         }
 
-        if let Some(rebuildsniff) = self.outpathdiff {
+        if let Some(ref mut rebuildsniff) = self.outpathdiff {
             status
                 .set_with_description("Checking new out paths", hubcaps::statuses::State::Pending);
 
@@ -340,8 +452,10 @@ impl <'a> EvaluationStrategy for NixpkgsStrategy<'a> {
         ]
     }
 
-    fn all_evaluations_passed(&self) -> StepResult<Vec<BuildJob>> {
-        self.check_meta()
+    fn all_evaluations_passed(&mut self, co: &Path, status: &mut CommitStatus) -> StepResult<Vec<BuildJob>> {
+        let jobs = self.check_meta(co)?;
+        self.handle_changed_outputs(co, status)?;
+        return Ok(jobs);
     }
 }
 
@@ -366,6 +480,21 @@ fn parse_commit_messages(messages: &[String]) -> Vec<String> {
         .collect()
 }
 
+fn request_reviews(maint: &maintainers::ImpactedMaintainers, pull: &hubcaps::pulls::PullRequest) {
+    if maint.maintainers().len() < 10 {
+        for maintainer in maint.maintainers() {
+            if let Err(e) =
+                pull.review_requests()
+                    .create(&hubcaps::review_requests::ReviewRequestOptions {
+                        reviewers: vec![maintainer.clone()],
+                        team_reviewers: vec![],
+                    })
+            {
+                println!("Failure requesting a review from {}: {:#?}", maintainer, e,);
+            }
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

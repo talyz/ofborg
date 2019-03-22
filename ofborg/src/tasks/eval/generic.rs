@@ -13,22 +13,22 @@ impl GenericStrategy {
 }
 
 impl EvaluationStrategy for GenericStrategy {
-    fn pre_clone(&self) -> StepResult<()> {
+    fn pre_clone(&mut self) -> StepResult<()> {
         Ok(())
     }
 
-    fn on_target_branch(&self, co: &Path,  status: &mut CommitStatus) -> StepResult<()> {
+    fn on_target_branch(&mut self, _co: &Path,  _status: &mut CommitStatus) -> StepResult<()> {
         Ok(())
     }
 
-    fn after_fetch(&self, co: &CachedProjectCo) -> StepResult<()> {
+    fn after_fetch(&mut self, _co: &CachedProjectCo) -> StepResult<()> {
         Ok(())
     }
 
-    fn merge_conflict(&self) {
+    fn merge_conflict(&mut self) {
     }
 
-    fn after_merge(&self, status: &mut CommitStatus) -> StepResult<()> {
+    fn after_merge(&mut self, _status: &mut CommitStatus) -> StepResult<()> {
         Ok(())
     }
 
@@ -36,7 +36,7 @@ impl EvaluationStrategy for GenericStrategy {
         vec![]
     }
 
-    fn all_evaluations_passed(&self) -> StepResult<Vec<BuildJob>> {
+    fn all_evaluations_passed(&mut self, _co: &Path, _status: &mut CommitStatus) -> StepResult<Vec<BuildJob>> {
         Ok(vec![])
     }
 }

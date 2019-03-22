@@ -3,33 +3,22 @@ extern crate amqp;
 extern crate env_logger;
 extern crate uuid;
 
-use crate::maintainers;
-use crate::maintainers::ImpactedMaintainers;
 use amqp::protocol::basic::{BasicProperties, Deliver};
 use hubcaps;
 use hubcaps::issues::Issue;
 use ofborg::acl::ACL;
 use ofborg::checkout;
-use ofborg::commentparser::Subset;
 use ofborg::commitstatus::CommitStatus;
-use ofborg::evalchecker::EvalChecker;
 use ofborg::files::file_to_str;
 use ofborg::message::{buildjob, evaluationjob};
 use ofborg::nix;
-use ofborg::outpathdiff::{OutPathDiff, OutPaths};
 use ofborg::stats;
 use ofborg::stats::Event;
 use ofborg::systems;
-use ofborg::tagger::{
-    MaintainerPRTagger, PathsTagger, PkgsAddedRemovedTagger, RebuildTagger, StdenvTagger,
-};
 use ofborg::worker;
 use std::collections::HashMap;
 use std::path::Path;
-use std::path::PathBuf;
-use std::time::Instant;
 use tasks::eval;
-use uuid::Uuid;
 
 pub struct EvaluationWorker<E> {
     cloner: checkout::CachedCloner,
@@ -105,11 +94,6 @@ impl<E: stats::SysEvents + 'static> worker::SimpleWorker for EvaluationWorker<E>
         let issue: Issue;
         let auto_schedule_build_archs: Vec<systems::System>;
 
-        let evaluation_strategy: Box<eval::EvaluationStrategy> = if job.is_nixpkgs() {
-            Box::new(eval::NixpkgsStrategy::new(&job, &repo, &issue_ref, &gists, &self.nix, &self.tag_paths)) /*, &self.events))*/
-        } else {
-            Box::new(eval::GenericStrategy::new())
-        };
 
         match issue_ref.get() {
             Ok(iss) => {
@@ -137,6 +121,12 @@ impl<E: stats::SysEvents + 'static> worker::SimpleWorker for EvaluationWorker<E>
                 info!("E: {:?}", e);
                 return self.actions().skip(&job);
             }
+        };
+
+        let mut evaluation_strategy: Box<eval::EvaluationStrategy> = if job.is_nixpkgs() {
+            Box::new(eval::NixpkgsStrategy::new(&job, &repo, &pull, &issue_ref, &issue, &gists, &self.nix, &self.tag_paths)) /*, &self.events))*/
+        } else {
+            Box::new(eval::GenericStrategy::new())
         };
 
         let mut overall_status = CommitStatus::new(
@@ -210,7 +200,7 @@ impl<E: stats::SysEvents + 'static> worker::SimpleWorker for EvaluationWorker<E>
         overall_status
             .set_with_description("Beginning Evaluations", hubcaps::statuses::State::Pending);
 
-        let mut eval_results: bool = evaluation_strategy.evaluation_checks()
+        let eval_results: bool = evaluation_strategy.evaluation_checks()
             .into_iter()
             .map(|check| {
                 let mut status = CommitStatus::new(
@@ -254,127 +244,33 @@ impl<E: stats::SysEvents + 'static> worker::SimpleWorker for EvaluationWorker<E>
 
         let mut response: worker::Actions = vec![];
         if eval_results {
-            match evaluation_strategy.all_evaluations_passed() {
+            match evaluation_strategy.all_evaluations_passed(Path::new(&refpath), &mut overall_status) {
                 Ok(jobs) => {
-                    for arch in auto_schedule_build_archs.iter() {
-                        let (exchange, routingkey) = arch.as_build_destination();
-                        response.push(worker::publish_serde_action(exchange, routingkey, &job));
+                    for buildjobmsg in jobs {
+                        for arch in auto_schedule_build_archs.iter() {
+                            let (exchange, routingkey) = arch.as_build_destination();
+                            response.push(worker::publish_serde_action(exchange, routingkey, &buildjobmsg));
+                        }
+                        response.push(worker::publish_serde_action(
+                            Some("build-results".to_string()),
+                            None,
+                            &buildjob::QueuedBuildJobs {
+                                job: buildjobmsg,
+                                architectures: auto_schedule_build_archs
+                                    .iter()
+                                    .map(|arch| arch.to_string())
+                                    .collect(),
+                            },
+                        ));
                     }
-                    response.push(worker::publish_serde_action(
-                        Some("build-results".to_string()),
-                        None,
-                        &buildjob::QueuedBuildJobs {
-                            job: &job,
-                            architectures: auto_schedule_build_archs
-                                .into_iter()
-                                .map(|arch| arch.to_string())
-                                .collect(),
-                        },
-                    ));
+
+                    overall_status.set_with_description("^.^!", hubcaps::statuses::State::Success);
                 },
-            }
-        }
-
-        if eval_results {
-            overall_status.set_with_description(
-                "Calculating Changed Outputs",
-                hubcaps::statuses::State::Pending,
-            );
-
-            let mut stdenvtagger = StdenvTagger::new();
-            if !stdenvs.are_same() {
-                stdenvtagger.changed(stdenvs.changed());
-            }
-            update_labels(
-                &issue_ref,
-                &stdenvtagger.tags_to_add(),
-                &stdenvtagger.tags_to_remove(),
-            );
-
-            if let Some((removed, added)) = rebuildsniff.package_diff() {
-                let mut addremovetagger = PkgsAddedRemovedTagger::new();
-                addremovetagger.changed(&removed, &added);
-                update_labels(
-                    &issue_ref,
-                    &addremovetagger.tags_to_add(),
-                    &addremovetagger.tags_to_remove(),
-                );
-            }
-
-            let mut rebuild_tags = RebuildTagger::new();
-            if let Some(attrs) = rebuildsniff.calculate_rebuild() {
-                if !attrs.is_empty() {
-                    let gist_url = make_gist(
-                        &gists,
-                        "Changed Paths",
-                        Some("".to_owned()),
-                        attrs
-                            .iter()
-                            .map(|attr| format!("{}\t{}", &attr.architecture, &attr.package))
-                            .collect::<Vec<String>>()
-                            .join("\n"),
-                    );
-
-                    overall_status.set_url(gist_url);
-
-                    let changed_attributes = attrs
-                        .iter()
-                        .map(|attr| attr.package.split('.').collect::<Vec<&str>>())
-                        .collect::<Vec<Vec<&str>>>();
-
-                    let m = ImpactedMaintainers::calculate(
-                        &self.nix,
-                        &PathBuf::from(&refpath),
-                        &changed_paths,
-                        &changed_attributes,
-                    );
-
-                    let gist_url = make_gist(
-                        &gists,
-                        "Potential Maintainers",
-                        Some("".to_owned()),
-                        match m {
-                            Ok(ref maintainers) => format!("Maintainers:\n{}", maintainers),
-                            Err(ref e) => format!("Ignorable calculation error:\n{:?}", e),
-                        },
-                    );
-
-                    if let Ok(ref maint) = m {
-                        request_reviews(&maint, &pull);
-                        let mut maint_tagger = MaintainerPRTagger::new();
-                        maint_tagger
-                            .record_maintainer(&issue.user.login, &maint.maintainers_by_package());
-                        update_labels(
-                            &issue_ref,
-                            &maint_tagger.tags_to_add(),
-                            &maint_tagger.tags_to_remove(),
-                        );
-                    }
-
-                    let mut status = CommitStatus::new(
-                        repo.statuses(),
-                        job.pr.head_sha.clone(),
-                        String::from("grahamcofborg-eval-check-maintainers"),
-                        String::from("matching changed paths to changed attrs..."),
-                        gist_url,
-                    );
-
-                    status.set(hubcaps::statuses::State::Success);
+                Err(_) => {
+                    overall_status
+                        .set_with_description("Complete, with errors", hubcaps::statuses::State::Failure);
                 }
-
-                rebuild_tags.parse_attrs(attrs);
             }
-
-            update_labels(
-                &issue_ref,
-                &rebuild_tags.tags_to_add(),
-                &rebuild_tags.tags_to_remove(),
-            );
-
-            overall_status.set_with_description("^.^!", hubcaps::statuses::State::Success);
-        } else {
-            overall_status
-                .set_with_description("Complete, with errors", hubcaps::statuses::State::Failure);
         }
 
         self.events.notify(Event::TaskEvaluationCheckComplete);
@@ -466,20 +362,4 @@ fn indicates_wip(text: &str) -> bool {
     }
 
     false
-}
-
-fn request_reviews(maint: &maintainers::ImpactedMaintainers, pull: &hubcaps::pulls::PullRequest) {
-    if maint.maintainers().len() < 10 {
-        for maintainer in maint.maintainers() {
-            if let Err(e) =
-                pull.review_requests()
-                    .create(&hubcaps::review_requests::ReviewRequestOptions {
-                        reviewers: vec![maintainer.clone()],
-                        team_reviewers: vec![],
-                    })
-            {
-                println!("Failure requesting a review from {}: {:#?}", maintainer, e,);
-            }
-        }
-    }
 }

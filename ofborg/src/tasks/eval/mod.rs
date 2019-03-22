@@ -11,13 +11,13 @@ use ofborg::evalchecker::EvalChecker;
 use ofborg::message::buildjob::BuildJob;
 
 pub trait EvaluationStrategy {
-    fn pre_clone(&self) -> StepResult<()>;
-    fn on_target_branch(&self, co: &Path, status: &mut CommitStatus) -> StepResult<()>;
-    fn after_fetch(&self, co: &CachedProjectCo) -> StepResult<()>;
-    fn merge_conflict(&self);
-    fn after_merge(&self, status: &mut CommitStatus) -> StepResult<()>;
+    fn pre_clone(&mut self) -> StepResult<()>;
+    fn on_target_branch(&mut self, co: &Path, status: &mut CommitStatus) -> StepResult<()>;
+    fn after_fetch(&mut self, co: &CachedProjectCo) -> StepResult<()>;
+    fn merge_conflict(&mut self);
+    fn after_merge(&mut self, status: &mut CommitStatus) -> StepResult<()>;
     fn evaluation_checks(&self) -> Vec<EvalChecker>;
-    fn all_evaluations_passed(&self) -> StepResult<Vec<BuildJob>>;
+    fn all_evaluations_passed(&mut self, co: &Path, status: &mut CommitStatus) -> StepResult<Vec<BuildJob>>;
 }
 
 type StepResult<T> = Result<T, Error>;
