@@ -1,9 +1,14 @@
 use ofborg::tagger::{
     MaintainerPRTagger, PathsTagger, PkgsAddedRemovedTagger, RebuildTagger, StdenvTagger,
 };
+use ofborg::worker;
+use ofborg::message::{buildjob, evaluationjob};
+use ofborg::commentparser::Subset;
+use uuid::Uuid;
 use tasks::eval::{EvaluationStrategy, StepResult, Stdenvs, Error};
 use hubcaps::issues::IssueRef;
 use hubcaps::gists::Gists;
+use hubcaps::repos::Repo;
 use tasks::evaluate::{update_labels, make_gist};
 use std::path::PathBuf;
 use ofborg::outpathdiff::{OutPathDiff, OutPaths};
@@ -16,22 +21,29 @@ use ofborg::nix::Nix;
 use ofborg::commitstatus::CommitStatus;
 use ofborg::checkout::CachedProjectCo;
 use std::collections::HashMap;
+use ofborg::evalchecker::EvalChecker;
+use ofborg::nix;
+use ofborg::message::buildjob::BuildJob;
 
 pub struct NixpkgsStrategy<'a> {
     job: &'a EvaluationJob,
+    repo: &'a Repo<'a>,
     issue: &'a IssueRef<'a>,
     gists: &'a Gists<'a>,
     events: (),
     nix: &'a Nix,
     tag_paths: &'a HashMap<String, Vec<String>>,
     stdenvs: Option<Stdenvs>,
-    outpathdiff: Option<OutPathDiff>
+    outpathdiff: Option<OutPathDiff>,
+    resulting_actions: worker::Actions,
+    possibly_touched_packages: Option<Vec<String>>,
 }
 
 impl <'a> NixpkgsStrategy<'a> {
-    pub fn new(job: &'a EvaluationJob, issue: &'a IssueRef, gists: &'a Gists, nix: &'a Nix, tag_paths: &'a HashMap<String, Vec<String>>,) -> NixpkgsStrategy<'a> {
+    pub fn new(job: &'a EvaluationJob, repo: &'a Repo, issue: &'a IssueRef, gists: &'a Gists, nix: &'a Nix, tag_paths: &'a HashMap<String, Vec<String>>,) -> NixpkgsStrategy<'a> {
         Self {
             job,
+            repo,
             issue,
             gists,
             nix,
@@ -39,6 +51,8 @@ impl <'a> NixpkgsStrategy<'a> {
             events: (),
             stdenvs: None,
             outpathdiff: None,
+            resulting_actions: vec![],
+            possibly_touched_packages: None,
         }
     }
 
@@ -64,15 +78,81 @@ impl <'a> NixpkgsStrategy<'a> {
 
         update_labels(&issue, &tagger.tags_to_add(), &tagger.tags_to_remove());
     }
+
+    fn check_meta(&self) -> StepResult<Vec<BuildJob>> {
+        let mut status = CommitStatus::new(
+            self.repo.statuses(),
+            self.job.pr.head_sha.clone(),
+            String::from("grahamcofborg-eval-check-meta"),
+            String::from("config.nix: checkMeta = true"),
+            None,
+        );
+
+        status.set(hubcaps::statuses::State::Pending);
+
+        let state: hubcaps::statuses::State;
+        let gist_url: Option<String>;
+
+        let checker = OutPaths::new(self.nix.clone(), PathBuf::from(&refpath), true);
+        match checker.find() {
+            Ok(pkgs) => {
+                status.set_url(None);
+                status.set(hubcaps::statuses::State::Success);
+
+                if let Some(possibly_touched_packages) = self.possibly_touched_packages {
+                    let mut try_build: Vec<String> = pkgs
+                        .keys()
+                        .map(|pkgarch| pkgarch.package.clone())
+                        .filter(|pkg| possibly_touched_packages.contains(&pkg))
+                        .collect();
+                    try_build.sort();
+                    try_build.dedup();
+
+                    if !try_build.is_empty() && try_build.len() <= 10 {
+                        // In the case of trying to merge master in to
+                        // a stable branch, we don't want to do this.
+                        // Therefore, only schedule builds if there
+                        // less than or exactly 10
+                        let msg = buildjob::BuildJob::new(
+                            self.job.repo.clone(),
+                            self.job.pr.clone(),
+                            Subset::Nixpkgs,
+                            try_build,
+                            None,
+                            None,
+                            format!("{}", Uuid::new_v4()),
+                        );
+
+                        return Ok(vec![ msg ]);
+                    }
+                }
+
+                return Ok(vec![]);
+            }
+            Err(mut out) => {
+                state = hubcaps::statuses::State::Failure;
+                gist_url = make_gist(
+                    &self.gists,
+                    "Meta Check",
+                    Some(format!("{:?}", state)),
+                    file_to_str(&mut out),
+                );
+
+                status.set_url(gist_url);
+                status.set(state);
+                return Err(Error::Fail(String::from("Failed to run verify package meta fields.")));
+            }
+        }
+    }
 }
 
 impl <'a> EvaluationStrategy for NixpkgsStrategy<'a> {
-    fn pre_clone(&self) -> StepResult {
+    fn pre_clone(&self) -> StepResult<()> {
         self.tag_from_title();
         Ok(())
     }
 
-    fn on_target_branch(&self, co: &Path, status: &mut CommitStatus) -> StepResult {
+    fn on_target_branch(&self, co: &Path, status: &mut CommitStatus) -> StepResult<()> {
         status.set_with_description(
             "Checking original stdenvs",
             hubcaps::statuses::State::Pending,
@@ -128,11 +208,11 @@ impl <'a> EvaluationStrategy for NixpkgsStrategy<'a> {
         Ok(())
     }
 
-    fn after_fetch(&self, co: &CachedProjectCo) -> StepResult {
-        let possibly_touched_packages = parse_commit_messages(
+    fn after_fetch(&self, co: &CachedProjectCo) -> StepResult<()> {
+        self.possibly_touched_packages = Some(parse_commit_messages(
             &co.commit_messages_from_head(&self.job.pr.head_sha)
                 .unwrap_or_else(|_| vec!["".to_owned()]),
-        );
+        ));
 
         let changed_paths = co
             .files_changed_from_head(&self.job.pr.head_sha)
@@ -142,13 +222,11 @@ impl <'a> EvaluationStrategy for NixpkgsStrategy<'a> {
         Ok(())
     }
 
-
-
     fn merge_conflict(&self) {
         update_labels(&self.issue, &["2.status: merge conflict".to_owned()], &[]);
     }
 
-    fn after_merge(&self, status: &mut CommitStatus) -> StepResult {
+    fn after_merge(&self, status: &mut CommitStatus) -> StepResult<()> {
         update_labels(&self.issue, &[], &["2.status: merge conflict".to_owned()]);
 
 
@@ -172,6 +250,98 @@ impl <'a> EvaluationStrategy for NixpkgsStrategy<'a> {
         }
 
         Ok(())
+    }
+
+    fn evaluation_checks(&self) -> Vec<EvalChecker> {
+        vec![
+            EvalChecker::new(
+                "package-list",
+                nix::Operation::QueryPackagesJSON,
+                vec![String::from("--file"), String::from(".")],
+                self.nix.clone(),
+            ),
+            EvalChecker::new(
+                "package-list-no-aliases",
+                nix::Operation::QueryPackagesJSON,
+                vec![
+                    String::from("--file"),
+                    String::from("."),
+                    String::from("--arg"),
+                    String::from("config"),
+                    String::from("{ allowAliases = false; }"),
+                ],
+                self.nix.clone(),
+            ),
+            EvalChecker::new(
+                "nixos-options",
+                nix::Operation::Instantiate,
+                vec![
+                    String::from("--arg"),
+                    String::from("nixpkgs"),
+                    String::from("{ outPath=./.; revCount=999999; shortRev=\"ofborg\"; }"),
+                    String::from("./nixos/release.nix"),
+                    String::from("-A"),
+                    String::from("options"),
+                ],
+                self.nix.clone(),
+            ),
+            EvalChecker::new(
+                "nixos-manual",
+                nix::Operation::Instantiate,
+                vec![
+                    String::from("--arg"),
+                    String::from("nixpkgs"),
+                    String::from("{ outPath=./.; revCount=999999; shortRev=\"ofborg\"; }"),
+                    String::from("./nixos/release.nix"),
+                    String::from("-A"),
+                    String::from("manual"),
+                ],
+                self.nix.clone(),
+            ),
+            EvalChecker::new(
+                "nixpkgs-manual",
+                nix::Operation::Instantiate,
+                vec![
+                    String::from("--arg"),
+                    String::from("nixpkgs"),
+                    String::from("{ outPath=./.; revCount=999999; shortRev=\"ofborg\"; }"),
+                    String::from("./pkgs/top-level/release.nix"),
+                    String::from("-A"),
+                    String::from("manual"),
+                ],
+                self.nix.clone(),
+            ),
+            EvalChecker::new(
+                "nixpkgs-tarball",
+                nix::Operation::Instantiate,
+                vec![
+                    String::from("--arg"),
+                    String::from("nixpkgs"),
+                    String::from("{ outPath=./.; revCount=999999; shortRev=\"ofborg\"; }"),
+                    String::from("./pkgs/top-level/release.nix"),
+                    String::from("-A"),
+                    String::from("tarball"),
+                ],
+                self.nix.clone(),
+            ),
+            EvalChecker::new(
+                "nixpkgs-unstable-jobset",
+                nix::Operation::Instantiate,
+                vec![
+                    String::from("--arg"),
+                    String::from("nixpkgs"),
+                    String::from("{ outPath=./.; revCount=999999; shortRev=\"ofborg\"; }"),
+                    String::from("./pkgs/top-level/release.nix"),
+                    String::from("-A"),
+                    String::from("unstable"),
+                ],
+                self.nix.clone(),
+            ),
+        ]
+    }
+
+    fn all_evaluations_passed(&self) -> StepResult<Vec<BuildJob>> {
+        self.check_meta()
     }
 }
 

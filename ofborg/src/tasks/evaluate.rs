@@ -106,7 +106,7 @@ impl<E: stats::SysEvents + 'static> worker::SimpleWorker for EvaluationWorker<E>
         let auto_schedule_build_archs: Vec<systems::System>;
 
         let evaluation_strategy: Box<eval::EvaluationStrategy> = if job.is_nixpkgs() {
-            Box::new(eval::NixpkgsStrategy::new(&job, &issue_ref, &gists, &self.nix, &self.tag_paths)) /*, &self.events))*/
+            Box::new(eval::NixpkgsStrategy::new(&job, &repo, &issue_ref, &gists, &self.nix, &self.tag_paths)) /*, &self.events))*/
         } else {
             Box::new(eval::GenericStrategy::new())
         };
@@ -206,98 +206,11 @@ impl<E: stats::SysEvents + 'static> worker::SimpleWorker for EvaluationWorker<E>
 
         evaluation_strategy.after_merge(&mut overall_status);
 
-
         println!("Got path: {:?}, building", refpath);
         overall_status
             .set_with_description("Beginning Evaluations", hubcaps::statuses::State::Pending);
 
-        let eval_checks = vec![
-            EvalChecker::new(
-                "package-list",
-                nix::Operation::QueryPackagesJSON,
-                vec![String::from("--file"), String::from(".")],
-                self.nix.clone(),
-            ),
-            EvalChecker::new(
-                "package-list-no-aliases",
-                nix::Operation::QueryPackagesJSON,
-                vec![
-                    String::from("--file"),
-                    String::from("."),
-                    String::from("--arg"),
-                    String::from("config"),
-                    String::from("{ allowAliases = false; }"),
-                ],
-                self.nix.clone(),
-            ),
-            EvalChecker::new(
-                "nixos-options",
-                nix::Operation::Instantiate,
-                vec![
-                    String::from("--arg"),
-                    String::from("nixpkgs"),
-                    String::from("{ outPath=./.; revCount=999999; shortRev=\"ofborg\"; }"),
-                    String::from("./nixos/release.nix"),
-                    String::from("-A"),
-                    String::from("options"),
-                ],
-                self.nix.clone(),
-            ),
-            EvalChecker::new(
-                "nixos-manual",
-                nix::Operation::Instantiate,
-                vec![
-                    String::from("--arg"),
-                    String::from("nixpkgs"),
-                    String::from("{ outPath=./.; revCount=999999; shortRev=\"ofborg\"; }"),
-                    String::from("./nixos/release.nix"),
-                    String::from("-A"),
-                    String::from("manual"),
-                ],
-                self.nix.clone(),
-            ),
-            EvalChecker::new(
-                "nixpkgs-manual",
-                nix::Operation::Instantiate,
-                vec![
-                    String::from("--arg"),
-                    String::from("nixpkgs"),
-                    String::from("{ outPath=./.; revCount=999999; shortRev=\"ofborg\"; }"),
-                    String::from("./pkgs/top-level/release.nix"),
-                    String::from("-A"),
-                    String::from("manual"),
-                ],
-                self.nix.clone(),
-            ),
-            EvalChecker::new(
-                "nixpkgs-tarball",
-                nix::Operation::Instantiate,
-                vec![
-                    String::from("--arg"),
-                    String::from("nixpkgs"),
-                    String::from("{ outPath=./.; revCount=999999; shortRev=\"ofborg\"; }"),
-                    String::from("./pkgs/top-level/release.nix"),
-                    String::from("-A"),
-                    String::from("tarball"),
-                ],
-                self.nix.clone(),
-            ),
-            EvalChecker::new(
-                "nixpkgs-unstable-jobset",
-                nix::Operation::Instantiate,
-                vec![
-                    String::from("--arg"),
-                    String::from("nixpkgs"),
-                    String::from("{ outPath=./.; revCount=999999; shortRev=\"ofborg\"; }"),
-                    String::from("./pkgs/top-level/release.nix"),
-                    String::from("-A"),
-                    String::from("unstable"),
-                ],
-                self.nix.clone(),
-            ),
-        ];
-
-        let mut eval_results: bool = eval_checks
+        let mut eval_results: bool = evaluation_strategy.evaluation_checks()
             .into_iter()
             .map(|check| {
                 let mut status = CommitStatus::new(
@@ -340,80 +253,26 @@ impl<E: stats::SysEvents + 'static> worker::SimpleWorker for EvaluationWorker<E>
             .all(|status| status == Ok(()));
 
         let mut response: worker::Actions = vec![];
-
         if eval_results {
-            let mut status = CommitStatus::new(
-                repo.statuses(),
-                job.pr.head_sha.clone(),
-                String::from("grahamcofborg-eval-check-meta"),
-                String::from("config.nix: checkMeta = true"),
-                None,
-            );
-
-            status.set(hubcaps::statuses::State::Pending);
-
-            let state: hubcaps::statuses::State;
-            let gist_url: Option<String>;
-
-            let checker = OutPaths::new(self.nix.clone(), PathBuf::from(&refpath), true);
-            match checker.find() {
-                Ok(pkgs) => {
-                    state = hubcaps::statuses::State::Success;
-                    gist_url = None;
-
-                    let mut try_build: Vec<String> = pkgs
-                        .keys()
-                        .map(|pkgarch| pkgarch.package.clone())
-                        .filter(|pkg| possibly_touched_packages.contains(&pkg))
-                        .collect();
-                    try_build.sort();
-                    try_build.dedup();
-
-                    if !try_build.is_empty() && try_build.len() <= 10 {
-                        // In the case of trying to merge master in to
-                        // a stable branch, we don't want to do this.
-                        // Therefore, only schedule builds if there
-                        // less than or exactly 10
-                        let msg = buildjob::BuildJob::new(
-                            job.repo.clone(),
-                            job.pr.clone(),
-                            Subset::Nixpkgs,
-                            try_build,
-                            None,
-                            None,
-                            format!("{}", Uuid::new_v4()),
-                        );
-                        for arch in auto_schedule_build_archs.iter() {
-                            let (exchange, routingkey) = arch.as_build_destination();
-                            response.push(worker::publish_serde_action(exchange, routingkey, &msg));
-                        }
-                        response.push(worker::publish_serde_action(
-                            Some("build-results".to_string()),
-                            None,
-                            &buildjob::QueuedBuildJobs {
-                                job: msg,
-                                architectures: auto_schedule_build_archs
-                                    .into_iter()
-                                    .map(|arch| arch.to_string())
-                                    .collect(),
-                            },
-                        ));
+            match evaluation_strategy.all_evaluations_passed() {
+                Ok(jobs) => {
+                    for arch in auto_schedule_build_archs.iter() {
+                        let (exchange, routingkey) = arch.as_build_destination();
+                        response.push(worker::publish_serde_action(exchange, routingkey, &job));
                     }
-                }
-                Err(mut out) => {
-                    eval_results = false;
-                    state = hubcaps::statuses::State::Failure;
-                    gist_url = make_gist(
-                        &gists,
-                        "Meta Check",
-                        Some(format!("{:?}", state)),
-                        file_to_str(&mut out),
-                    );
-                }
+                    response.push(worker::publish_serde_action(
+                        Some("build-results".to_string()),
+                        None,
+                        &buildjob::QueuedBuildJobs {
+                            job: &job,
+                            architectures: auto_schedule_build_archs
+                                .into_iter()
+                                .map(|arch| arch.to_string())
+                                .collect(),
+                        },
+                    ));
+                },
             }
-
-            status.set_url(gist_url);
-            status.set(state.clone());
         }
 
         if eval_results {
