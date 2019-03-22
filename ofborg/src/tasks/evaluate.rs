@@ -204,15 +204,7 @@ impl<E: stats::SysEvents + 'static> worker::SimpleWorker for EvaluationWorker<E>
             return self.actions().skip(&job);
         }
 
-        evaluation_strategy.after_merge();
-
-        overall_status
-            .set_with_description("Checking new stdenvs", hubcaps::statuses::State::Pending);
-
-        stdenvs.identify_after();
-
-        overall_status
-            .set_with_description("Checking new out paths", hubcaps::statuses::State::Pending);
+        evaluation_strategy.after_merge(&mut overall_status);
 
         if let Err(mut output) = rebuildsniff.find_after() {
             overall_status.set_url(make_gist(

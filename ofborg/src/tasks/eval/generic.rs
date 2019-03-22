@@ -26,7 +26,7 @@ impl EvaluationStrategy for GenericStrategy {
     fn merge_conflict(&self) {
     }
 
-    fn after_merge(&self) -> StepResult {
+    fn after_merge(&self, status: &mut CommitStatus) -> StepResult {
         Ok(())
     }
 }
