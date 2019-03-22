@@ -116,7 +116,7 @@ impl<E: stats::SysEvents + 'static> worker::SimpleWorker for EvaluationWorker<E>
         let auto_schedule_build_archs: Vec<systems::System>;
 
         let evaluation_strategy: Box<eval::EvaluationStrategy> = if job.is_nixpkgs() {
-            Box::new(eval::NixpkgsStrategy::new(&issue_ref, &gists))
+            Box::new(eval::NixpkgsStrategy::new(&job, &issue_ref, &gists, &self.nix)) /*, &self.events))*/
         } else {
             Box::new(eval::GenericStrategy::new())
         };
@@ -185,7 +185,7 @@ impl<E: stats::SysEvents + 'static> worker::SimpleWorker for EvaluationWorker<E>
         let refpath = co.checkout_origin_ref(target_branch.as_ref()).unwrap();
 
 
-        evaluation_strategy.before_merge(&mut overall_status, refpath);
+        evaluation_strategy.before_merge(&Path::new(&refpath), &mut overall_status);
 
         overall_status.set_with_description("Fetching PR", hubcaps::statuses::State::Pending);
 

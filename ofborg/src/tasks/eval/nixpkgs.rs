@@ -1,6 +1,6 @@
 use tasks::eval::{EvaluationStrategy, StepResult, Stdenvs, Error};
 use hubcaps::issues::IssueRef;
-use hubcaps::gists::Gist;
+use hubcaps::gists::Gists;
 use tasks::evaluate::{update_labels, make_gist};
 use std::path::PathBuf;
 use ofborg::outpathdiff::{OutPathDiff, OutPaths};
@@ -8,23 +8,26 @@ use std::time::Instant;
 use ofborg::stats::Event;
 use std::path::Path;
 use ofborg::files::file_to_str;
+use ofborg::message::evaluationjob::EvaluationJob;
+use ofborg::nix::Nix;
+use ofborg::commitstatus::CommitStatus;
 
 pub struct NixpkgsStrategy<'a> {
-    job: (),
+    job: &'a EvaluationJob,
     issue: &'a IssueRef<'a>,
-    gists: &'a Gist,
+    gists: &'a Gists<'a>,
     events: (),
-    nix: (),
+    nix: &'a Nix,
 }
 
 impl <'a> NixpkgsStrategy<'a> {
-    pub fn new(job: (), issue: &'a IssueRef, gist: &'a Gist, nix: (), events: ()) -> NixpkgsStrategy<'a> {
+    pub fn new(job: &'a EvaluationJob, issue: &'a IssueRef, gists: &'a Gists, nix: &'a Nix) -> NixpkgsStrategy<'a> {
         Self {
             job,
             issue,
-            gist,
+            gists,
             nix,
-            events
+            events: ()
         }
     }
 
@@ -48,7 +51,7 @@ impl <'a> EvaluationStrategy for NixpkgsStrategy<'a> {
         Ok(())
     }
 
-    fn before_merge(&self, co: &Path, status: ()) -> StepResult {
+    fn before_merge(&self, co: &Path, status: &mut CommitStatus) -> StepResult {
         status.set_with_description(
             "Checking original stdenvs",
             hubcaps::statuses::State::Pending,
@@ -80,8 +83,10 @@ impl <'a> EvaluationStrategy for NixpkgsStrategy<'a> {
                 file_to_str(&mut output),
             ));
 
+            /*
             self.events
                 .notify(Event::TargetBranchFailsEvaluation(target_branch.clone()));
+*/
             status.set_with_description(
                 format!("Target branch {} doesn't evaluate!", &target_branch).as_ref(),
                 hubcaps::statuses::State::Failure,
@@ -90,13 +95,14 @@ impl <'a> EvaluationStrategy for NixpkgsStrategy<'a> {
             return Err(Error::Fail(String::from("Pull request targets a branch which does not evaluate!")))
         }
 
-
+/*
         self.events.notify(Event::EvaluationDuration(
             target_branch.clone(),
             target_branch_rebuild_sniff_start.elapsed().as_secs(),
         ));
         self.events
             .notify(Event::EvaluationDurationCount(target_branch.clone()));
+*/
         Ok(())
     }
 }

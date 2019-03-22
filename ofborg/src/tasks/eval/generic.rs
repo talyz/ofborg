@@ -1,5 +1,6 @@
 use tasks::eval::{EvaluationStrategy, StepResult};
 use std::path::Path;
+use ofborg::commitstatus::CommitStatus;
 
 pub struct GenericStrategy {}
 impl GenericStrategy {
@@ -13,7 +14,7 @@ impl EvaluationStrategy for GenericStrategy {
         Ok(())
     }
 
-    fn before_merge(&self, co: &Path, status: ()) -> StepResult {
+    fn before_merge(&self, co: &Path,  status: &mut CommitStatus) -> StepResult {
         Ok(())
     }
 }
