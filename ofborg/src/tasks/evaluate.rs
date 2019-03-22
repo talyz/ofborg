@@ -65,16 +65,6 @@ impl<E: stats::SysEvents> EvaluationWorker<E> {
     fn actions(&self) -> evaluationjob::Actions {
         evaluationjob::Actions {}
     }
-
-    fn tag_from_paths(&self, issue: &hubcaps::issues::IssueRef, paths: &[String]) {
-        let mut tagger = PathsTagger::new(self.tag_paths.clone());
-
-        for path in paths {
-            tagger.path_changed(&path);
-        }
-
-        update_labels(&issue, &tagger.tags_to_add(), &tagger.tags_to_remove());
-    }
 }
 
 impl<E: stats::SysEvents + 'static> worker::SimpleWorker for EvaluationWorker<E> {
@@ -116,7 +106,7 @@ impl<E: stats::SysEvents + 'static> worker::SimpleWorker for EvaluationWorker<E>
         let auto_schedule_build_archs: Vec<systems::System>;
 
         let evaluation_strategy: Box<eval::EvaluationStrategy> = if job.is_nixpkgs() {
-            Box::new(eval::NixpkgsStrategy::new(&job, &issue_ref, &gists, &self.nix)) /*, &self.events))*/
+            Box::new(eval::NixpkgsStrategy::new(&job, &issue_ref, &gists, &self.nix, &self.tag_paths)) /*, &self.events))*/
         } else {
             Box::new(eval::GenericStrategy::new())
         };
@@ -199,15 +189,7 @@ impl<E: stats::SysEvents + 'static> worker::SimpleWorker for EvaluationWorker<E>
             return self.actions().skip(&job);
         }
 
-        let possibly_touched_packages = parse_commit_messages(
-            &co.commit_messages_from_head(&job.pr.head_sha)
-                .unwrap_or_else(|_| vec!["".to_owned()]),
-        );
-
-        let changed_paths = co
-            .files_changed_from_head(&job.pr.head_sha)
-            .unwrap_or_else(|_| vec![]);
-        self.tag_from_paths(&issue_ref, &changed_paths);
+        evaluation_strategy.after_fetch(&co);
 
         overall_status.set_with_description("Merging PR", hubcaps::statuses::State::Pending);
 
@@ -623,69 +605,6 @@ pub fn update_labels(issue: &hubcaps::issues::IssueRef, add: &[String], remove: 
 
     for label in to_remove {
         l.remove(&label).expect("Failed to remove tag");
-    }
-}
-
-fn parse_commit_messages(messages: &[String]) -> Vec<String> {
-    messages
-        .iter()
-        .filter_map(|line| {
-            // Convert "foo: some notes" in to "foo"
-            let parts: Vec<&str> = line.splitn(2, ':').collect();
-            if parts.len() == 2 {
-                Some(parts[0])
-            } else {
-                None
-            }
-        })
-        .flat_map(|line| {
-            let pkgs: Vec<&str> = line.split(',').collect();
-            pkgs
-        })
-        .map(|line| line.trim().to_owned())
-        .collect()
-}
-
-#[cfg(test)]
-mod tests {
-
-    use super::*;
-
-    #[test]
-    fn test_parse_commit_messages() {
-        let expect: Vec<&str> = vec![
-            "firefox{-esr", // don't support such fancy syntax
-            "}",            // Don't support such fancy syntax
-            "firefox",
-            "buildkite-agent",
-            "python.pkgs.ptyprocess",
-            "python.pkgs.ptyprocess",
-            "android-studio-preview",
-            "foo",
-            "bar",
-        ];
-        assert_eq!(
-            parse_commit_messages(
-                &"
-              firefox{-esr,}: fix failing build due to the google-api-key
-              Merge pull request #34483 from andir/dovecot-cve-2017-15132
-              firefox: enable official branding
-              Merge pull request #34442 from rnhmjoj/virtual
-              buildkite-agent: enable building on darwin
-              python.pkgs.ptyprocess: 0.5 -> 0.5.2
-              python.pkgs.ptyprocess: move expression
-              Merge pull request #34465 from steveeJ/steveej-attempt-qtile-bump-0.10.7
-              android-studio-preview: 3.1.0.8 -> 3.1.0.9
-              Merge pull request #34188 from dotlambda/home-assistant
-              Merge pull request #34414 from dotlambda/postfix
-              foo,bar: something here: yeah
-            "
-                .lines()
-                .map(|l| l.to_owned())
-                .collect::<Vec<String>>(),
-            ),
-            expect
-        );
     }
 }
 

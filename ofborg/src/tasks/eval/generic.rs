@@ -1,6 +1,7 @@
 use tasks::eval::{EvaluationStrategy, StepResult};
 use std::path::Path;
 use ofborg::commitstatus::CommitStatus;
+use ofborg::checkout::CachedProjectCo;
 
 pub struct GenericStrategy {}
 impl GenericStrategy {
@@ -15,6 +16,10 @@ impl EvaluationStrategy for GenericStrategy {
     }
 
     fn on_target_branch(&self, co: &Path,  status: &mut CommitStatus) -> StepResult {
+        Ok(())
+    }
+
+    fn after_fetch(&self, co: &CachedProjectCo) -> StepResult {
         Ok(())
     }
 }
