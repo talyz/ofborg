@@ -1,4 +1,4 @@
-use tasks::eval::EvaluationStrategy;
+use tasks::eval::{EvaluationStrategy, StepResult};
 
 pub struct GenericStrategy {}
 impl GenericStrategy {
@@ -8,7 +8,10 @@ impl GenericStrategy {
 }
 
 impl EvaluationStrategy for GenericStrategy {
-    fn pre_clone(&self) -> Result<(), ()> {
-        Ok(())
+    fn pre_clone(&self) -> StepResult {
+    }
+
+    fn before_merge(&self, status: ()) -> StepResult {
+
     }
 }

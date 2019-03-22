@@ -169,7 +169,7 @@ impl<E: stats::SysEvents + 'static> worker::SimpleWorker for EvaluationWorker<E>
 
         info!("Working on {}", job.pr.number);
         let co = project
-            .clone_for("mr-est".to_string(), self.identity.clone())
+            .clone_for("evaluate".to_string(), self.identity.clone())
             .unwrap();
 
         let target_branch = match job.pr.target_branch.clone() {

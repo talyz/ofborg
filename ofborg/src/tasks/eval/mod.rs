@@ -6,5 +6,11 @@ mod generic;
 pub use self::generic::GenericStrategy;
 
 pub trait EvaluationStrategy {
-    fn pre_clone(&self) -> Result<(), ()>;
+    fn pre_clone(&self) -> StepResult;
+    fn before_merge(&self, status: ()) -> StepResult;
+}
+
+type StepResult = Result<(), Error>;
+pub enum Error {
+    Fail(String),
 }

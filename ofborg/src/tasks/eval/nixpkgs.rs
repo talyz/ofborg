@@ -1,4 +1,4 @@
-use tasks::eval::EvaluationStrategy;
+use tasks::eval::{EvaluationStrategy, StepResult, Stdenvs};
 use hubcaps::issues::IssueRef;
 use tasks::evaluate::update_labels;
 
@@ -12,7 +12,6 @@ impl <'a> NixpkgsStrategy<'a> {
             issue
         }
     }
-
 
     fn tag_from_title(&self) {
         let darwin = self.issue.get()
@@ -29,7 +28,7 @@ impl <'a> NixpkgsStrategy<'a> {
 }
 
 impl <'a> EvaluationStrategy for NixpkgsStrategy<'a> {
-    fn pre_clone(&self) -> Result<(), ()> {
+    fn pre_clone(&self) -> StepResult {
         self.tag_from_title();
         Ok(())
     }
