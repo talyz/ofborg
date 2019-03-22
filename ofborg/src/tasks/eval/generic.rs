@@ -22,4 +22,11 @@ impl EvaluationStrategy for GenericStrategy {
     fn after_fetch(&self, co: &CachedProjectCo) -> StepResult {
         Ok(())
     }
+
+    fn merge_conflict(&self) {
+    }
+
+    fn after_merge(&self) -> StepResult {
+        Ok(())
+    }
 }

@@ -136,6 +136,18 @@ impl <'a> EvaluationStrategy for NixpkgsStrategy<'a> {
 
         Ok(())
     }
+
+
+
+    fn merge_conflict(&self) {
+        update_labels(&self.issue, &["2.status: merge conflict".to_owned()], &[]);
+    }
+
+    fn after_merge(&self) -> StepResult {
+        update_labels(&self.issue, &[], &["2.status: merge conflict".to_owned()]);
+
+        Ok(())
+    }
 }
 
 

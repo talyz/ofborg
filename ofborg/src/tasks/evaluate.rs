@@ -199,12 +199,12 @@ impl<E: stats::SysEvents + 'static> worker::SimpleWorker for EvaluationWorker<E>
 
             info!("Failed to merge {}", job.pr.head_sha);
 
-            update_labels(&issue_ref, &["2.status: merge conflict".to_owned()], &[]);
+            evaluation_strategy.merge_conflict();
 
             return self.actions().skip(&job);
-        } else {
-            update_labels(&issue_ref, &[], &["2.status: merge conflict".to_owned()]);
         }
+
+        evaluation_strategy.after_merge();
 
         overall_status
             .set_with_description("Checking new stdenvs", hubcaps::statuses::State::Pending);

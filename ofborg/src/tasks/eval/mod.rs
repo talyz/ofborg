@@ -12,6 +12,8 @@ pub trait EvaluationStrategy {
     fn pre_clone(&self) -> StepResult;
     fn on_target_branch(&self, co: &Path, status: &mut CommitStatus) -> StepResult;
     fn after_fetch(&self, co: &CachedProjectCo) -> StepResult;
+    fn merge_conflict(&self);
+    fn after_merge(&self) -> StepResult;
 }
 
 type StepResult = Result<(), Error>;
